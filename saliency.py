@@ -69,9 +69,9 @@ if __name__ == "__main__":
                 #plt.imshow(atariimg)
                 #plt.show()
             possaliency, negsaliency=agent.online_model.getSaliencyMap(state, 'advantage', action=action, PosNeg=True)
-            possaliency=possaliency[0].cpu()
+            possaliency=possaliency[0].cpu() #Use the saliency map for the most recent image
             negsaliency=negsaliency[0].cpu()
-            possaliency+=state[0]
+            possaliency+=state[0]#Add state to saliency maps in order to get gray game image
             negsaliency+=state[0]
             ataristate=agent.postProcess(state[0])
             ataripossaliency=agent.postProcess(possaliency.numpy())
@@ -85,7 +85,7 @@ if __name__ == "__main__":
                 #plt.show()
                 img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
                 cv2.imshow("Display window", img)
-                cv2.waitKey(200)
+                cv2.waitKey(60)
             #for i in range(4):
                 #plt.subplot(1,4,i+1)
                 #img=torch.cat([negsaliency[i].unsqueeze(0).cpu(), possaliency[i].unsqueeze(0).cpu(), torch.tensor(state[0]).unsqueeze(0)])#torch.zeros(possaliency[i].unsqueeze(0).size())])
