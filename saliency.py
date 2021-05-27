@@ -40,6 +40,7 @@ if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
     agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
+    agent.online_model.eval()
     with open(MODEL_PATH + str(LOAD_FILE_EPISODE) + '.json') as outfile:
         param = json.load(outfile)
         agent.epsilon = param.get('epsilon')
