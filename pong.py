@@ -1,5 +1,6 @@
 import gym
 import cv2
+import matplotlib.pyplot as plt
 
 import time
 import json
@@ -15,7 +16,7 @@ from collections import deque
 
 ENVIRONMENT = "PongDeterministic-v4"
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE =torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
 MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
@@ -43,9 +44,12 @@ class DuelCNN(nn.Module):
     """
     CNN with Duel Algo. https://arxiv.org/abs/1511.06581
     """
+
     def __init__(self, h, w, output_size):
         super(DuelCNN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=4,  out_channels=32, kernel_size=8, stride=4)
+        self.advantageEstimation = torch.empty(0, device=DEVICE, dtype=torch.float)
+        self.valueEstimation = torch.empty(0, device=DEVICE, dtype=torch.float)
+        self.conv1 = nn.Conv2d(in_channels=4, out_channels=32, kernel_size=8, stride=4)
         self.bn1 = nn.BatchNorm2d(32)
         convw, convh = self.conv2d_size_calc(w, h, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2)
@@ -84,13 +88,55 @@ class DuelCNN(nn.Module):
 
         Ax = self.Alrelu(self.Alinear1(x))
         Ax = self.Alinear2(Ax)  # No activation on last layer
+        self.advantageEstimation = Ax.clone()
 
         Vx = self.Vlrelu(self.Vlinear1(x))
         Vx = self.Vlinear2(Vx)  # No activation on last layer
+        self.valueEstimation = Vx.clone()
 
         q = Vx + (Ax - Ax.mean())
 
         return q
+
+    # Inputs:
+    # x: 4 channel input to the neural network
+    # PosNeg:
+    #   If True, function returns a 2-tuple:
+    #       positive saliency values with the negatives set to zero,
+    #       absolute values of negative saliency values, with the original positives set to zero
+    #   If False, function returns the absolute value of the saliency map (Jacobian of the relevant variable w.r.t. the input)
+    # mode= 'Value' or 'Advantage'
+    #   If 'Value':
+    #       Return saliency map(s) associated with the value estimate
+    #   If 'Advantage':
+    #       Then the input action has to be set to the index of the desired action to compute saliency map for
+
+    def getSaliencyMap(self, x, mode='value', action=None, PosNeg=False):
+        if mode != 'value':
+            if mode != 'advantage':
+                raise ValueError("mode needs to be 'value' or 'advantage'!")
+            else:
+                if action == None or action < 0:
+                    raise ValueError("If mode=='advantage', set non-negative action index to input 'action'.")
+        self.zero_grad()
+        inputs=torch.tensor(x, requires_grad = True, device=DEVICE, dtype=torch.float)
+        self.forward(inputs.unsqueeze(0))
+        if mode=='value':
+            self.valueEstimation.backward()
+        else:
+            self.advantageEstimation[0][action].backward()
+        saliency=inputs.grad.clone()
+        if PosNeg:
+            PosSaliency=saliency.clone()
+            NegSaliency=-1*saliency.clone()
+            AbsSaliency = torch.abs(saliency.clone())
+            PosSaliency=F.threshold(PosSaliency,0.0,0.0)/torch.max(AbsSaliency)
+            NegSaliency=F.threshold(NegSaliency,0.0,0.0)/torch.max(AbsSaliency)
+            return PosSaliency, NegSaliency
+        else:
+            AbsSaliency = torch.abs(saliency.clone())
+            saliency=saliency/torch.max(AbsSaliency)
+            return saliency
 
 
 class Agent:
@@ -107,10 +153,13 @@ class Agent:
         self.action_size = environment.action_space.n
 
         # Image pre process params
+        self.original_h = 210
+        self.original_w = 160
         self.target_h = 80  # Height after process
         self.target_w = 64  # Widht after process
 
-        self.crop_dim = [20, self.state_size_h, 0, self.state_size_w]  # Cut 20 px from top to get rid of the score table
+        self.crop_dim = [20, self.state_size_h, 0,
+                         self.state_size_w]  # Cut 20 px from top to get rid of the score table
 
         # Trust rate to our experiences
         self.gamma = GAMMA  # Discount coef for future predictions
@@ -138,12 +187,42 @@ class Agent:
         """
         Process image crop resize, grayscale and normalize the images
         """
+        #plt.imshow(image)
+        #plt.show()
         frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # To grayscale
+        #plt.imshow(frame, cmap='gray')
+        #plt.show()
         frame = frame[self.crop_dim[0]:self.crop_dim[1], self.crop_dim[2]:self.crop_dim[3]]  # Cut 20 px from top
+        #plt.imshow(frame, cmap='gray')
+        #plt.show()
         frame = cv2.resize(frame, (self.target_w, self.target_h))  # Resize
-        frame = frame.reshape(self.target_w, self.target_h) / 255  # Normalize
-
+        #plt.imshow(frame, cmap='gray')
+        #plt.show()
+        frame = frame.reshape(self.target_w, self.target_h) / 255.0  # Normalize
+        #plt.imshow(frame, cmap='gray')
+        #plt.show()
         return frame
+
+    def postProcess(self, frame):
+        """
+        Undo image crop, resize and normalization of the images
+        """
+        #plt.imshow(frame, cmap='gray')
+        #plt.show()
+        img = frame.reshape(self.target_h, self.target_w)# * 255  # Normalize
+        #plt.imshow(img, cmap='gray')
+        #plt.show()
+        img = cv2.resize(img, (self.original_w, self.original_h-20))  # Resize
+        #plt.imshow(img, cmap='gray')
+        #plt.show()
+        bigimg = np.zeros(shape=(self.original_h,self.original_w))
+        #plt.imshow(bigimg, cmap='gray')
+        #plt.show()
+        bigimg[20:,:]=img
+        #plt.imshow(bigimg, cmap='gray')
+        #plt.show()
+
+        return bigimg
 
     def act(self, state):
         """
@@ -197,7 +276,8 @@ class Agent:
         # Get indice of the max value of next_states_q_values
         # Use that indice to get a q_value from next_states_target_q_values
         # We use greedy for policy So it called off-policy
-        next_states_target_q_value = next_states_target_q_values.gather(1, next_states_q_values.max(1)[1].unsqueeze(1)).squeeze(1)
+        next_states_target_q_value = next_states_target_q_values.gather(1, next_states_q_values.max(1)[1].unsqueeze(
+            1)).squeeze(1)
         # Use Bellman function to find expected q value
         expected_q_value = reward + self.gamma * next_states_target_q_value * (1 - done)
 
@@ -230,8 +310,8 @@ if __name__ == "__main__":
     agent = Agent(environment)  # Create Agent
 
     if LOAD_MODEL_FROM_FILE:
-        agent.online_model.load_state_dict(torch.load(MODEL_PATH+str(LOAD_FILE_EPISODE)+".pkl", map_location="cpu"))
-        with open(MODEL_PATH+str(LOAD_FILE_EPISODE)+'.json') as outfile:
+        agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
+        with open(MODEL_PATH + str(LOAD_FILE_EPISODE) + '.json') as outfile:
             param = json.load(outfile)
             agent.epsilon = param.get('epsilon')
 
@@ -241,7 +321,7 @@ if __name__ == "__main__":
         startEpisode = 1
 
     last_100_ep_reward = deque(maxlen=100)  # Last 100 episode rewards
-    total_step = 1  # Cumulkative sum of all steps in episodes
+    total_step = 1  # Cumulative sum of all steps in episodes
     for episode in range(startEpisode, MAX_EPISODE):
 
         startTime = time.time()  # Keep time
@@ -249,7 +329,7 @@ if __name__ == "__main__":
 
         state = agent.preProcess(state)  # Process image
 
-        # Stack state . Every state contains 4 time contionusly frames
+        # Stack state . Every state contains 4 consecutive frames
         # We stack frames like 4 channel image
         state = np.stack((state, state, state, state))
 
@@ -257,12 +337,22 @@ if __name__ == "__main__":
         total_reward = 0  # Total reward for each episode
         total_loss = 0  # Total loss for each episode
         for step in range(MAX_STEP):
+            # Select and perform an action
+            action = agent.act(state)  # Act
 
             if RENDER_GAME_WINDOW:
                 environment.render()  # Show state visually
+                time.sleep(0.01)
+                possaliency, negsaliency=agent.online_model.getSaliencyMap(state, 'value', PosNeg=True)
+                """for i in range(4):
+                    plt.subplot(1,4,i+1)
+                    gray=torch.tensor(state[0]).unsqueeze(0)
+                    img=torch.cat([negsaliency[i].unsqueeze(0).cpu()+gray, possaliency[i].unsqueeze(0).cpu()+gray, gray])#torch.zeros(possaliency[i].unsqueeze(0).size())])
+                    img=img/torch.max(img)
+                    plt.imshow(gray[0])#.transpose(0,2).transpose(0,1))
+                plt.show()
+                exit()"""
 
-            # Select and perform an action
-            action = agent.act(state)  # Act
             next_state, reward, done, info = environment.step(action)  # Observe
 
             next_state = agent.preProcess(next_state)  # Process image
@@ -276,6 +366,8 @@ if __name__ == "__main__":
 
             # Move to the next state
             state = next_state  # Update state
+
+
 
             if TRAIN_MODEL:
                 # Perform one step of the optimization (on the target network)
@@ -311,7 +403,8 @@ if __name__ == "__main__":
                 avg_max_q_val = total_max_q_val / step
 
                 outStr = "Episode:{} Time:{} Reward:{:.2f} Loss:{:.2f} Last_100_Avg_Rew:{:.3f} Avg_Max_Q:{:.3f} Epsilon:{:.2f} Duration:{:.2f} Step:{} CStep:{}".format(
-                    episode, current_time_format, total_reward, total_loss, np.mean(last_100_ep_reward), avg_max_q_val, agent.epsilon, time_passed, step, total_step
+                    episode, current_time_format, total_reward, total_loss, np.mean(last_100_ep_reward), avg_max_q_val,
+                    agent.epsilon, time_passed, step, total_step
                 )
 
                 print(outStr)
@@ -319,6 +412,6 @@ if __name__ == "__main__":
                 if SAVE_MODELS:
                     outputPath = MODEL_PATH + "out" + '.txt'  # Save outStr to file
                     with open(outputPath, 'a') as outfile:
-                        outfile.write(outStr+"\n")
+                        outfile.write(outStr + "\n")
 
                 break
