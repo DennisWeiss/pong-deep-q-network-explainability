@@ -1,2 +1,5 @@
 /venv/
 .ipynb_checkpoints/
+
+#IntelliJ
+.idea/
