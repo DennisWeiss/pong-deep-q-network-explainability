@@ -36,10 +36,10 @@ RENDER_GYM_WINDOW = False  # Opens a new window to render the game (Won't work o
 RENDER_CV_WINDOW = True
 
 # SALIENCY HYPERPARAMETERS
-THRESHOLD=0.0
-MODE='value'
+THRESHOLD=0.55
+MODE='value' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
 ACTION=0
-LAG=0
+LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
