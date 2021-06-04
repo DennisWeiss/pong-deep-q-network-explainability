@@ -6,6 +6,7 @@ import time
 import json
 import random
 import numpy as np
+import math
 
 import torch
 import torch.nn as nn
@@ -27,15 +28,18 @@ LOAD_FILE_EPISODE = 900  # Load Xth episode from file
 MAX_EPISODE = 100000  # Max episode
 MAX_STEP = 100000  # Max step size for one episode
 
-START_VIEW=200
-
+START_VIEW = 200
 
 EPSILON = 0.0  # Epsilon
 
 RENDER_GYM_WINDOW = False  # Opens a new window to render the game (Won't work on colab default)
 RENDER_CV_WINDOW = True
 
-
+# SALIENCY HYPERPARAMETERS
+THRESHOLD=0.0
+MODE='value'
+ACTION=0
+LAG=0
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
@@ -59,26 +63,29 @@ if __name__ == "__main__":
         for step in range(MAX_STEP):
             # Select and perform an action
             action = agent.act(state)  # Act
+            ACTION=action
             environment.render()
-            possaliency, negsaliency=agent.online_model.getSaliencyMap(state, 'advantage', action=action, PosNeg=True)
-            possaliency=possaliency[0].cpu() #Use the saliency map for the most recent image
-            negsaliency=negsaliency[0].cpu()
-            possaliency+=state[0]#Add state to saliency maps in order to get gray game image
-            negsaliency+=state[0]
-            ataristate=agent.postProcess(state[0])
-            ataripossaliency=agent.postProcess(possaliency.numpy())
-            atarinegsaliency=agent.postProcess(negsaliency.numpy())
-            img=torch.cat([torch.tensor(atarinegsaliency, dtype=torch.float).unsqueeze(0), torch.tensor(ataripossaliency, dtype=torch.float).unsqueeze(0), torch.tensor(ataristate,dtype=torch.float).unsqueeze(0)])
-            img=img/torch.max(img)
-            img=img.transpose(0,2).transpose(0,1).numpy()
-            img[0:20,:]=atariimg[0:20,:]/255.0
-            if step>START_VIEW:
-                #plt.imshow(img)
-                #plt.show()
-                img=cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-                cv2.imshow("Display window", img)
-                cv2.waitKey(60)
+            ataristate = agent.postProcess(state[0])
 
+            img0=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0)
+            #img0=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0)
+            img1=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1)
+            #img1=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1)
+            img2=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2)
+            #img2=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2)
+            img3=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3)
+            #img3=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3)
+            img4=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1)
+            #img4=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1)
+            if step > START_VIEW:
+                # plt.imshow(img)
+                # plt.show()
+                cv2.imshow("Frame-0 (Last Frame)", img0)
+                cv2.imshow("Frame-1", img1)
+                cv2.imshow("Frame-2", img2)
+                cv2.imshow("Frame-3", img3)
+                cv2.imshow("Average Saliency", img4)
+                cv2.waitKey(60)
 
             next_state, reward, done, info = environment.step(action)  # Observe
             atariimg = next_state
@@ -91,8 +98,6 @@ if __name__ == "__main__":
 
             # Move to the next state
             state = next_state  # Update state
-
-
 
             if done:  # Episode completed
                 break

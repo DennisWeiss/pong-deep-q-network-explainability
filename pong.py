@@ -16,7 +16,7 @@ from collections import deque
 
 ENVIRONMENT = "PongDeterministic-v4"
 
-DEVICE =torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
 MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
@@ -100,18 +100,14 @@ class DuelCNN(nn.Module):
 
     # Inputs:
     # x: 4 channel input to the neural network
-    # PosNeg:
-    #   If True, function returns a 2-tuple:
-    #       positive saliency values with the negatives set to zero,
-    #       absolute values of negative saliency values, with the original positives set to zero
-    #   If False, function returns the absolute value of the saliency map (Jacobian of the relevant variable w.r.t. the input)
-    # mode= 'Value' or 'Advantage'
-    #   If 'Value':
+    #  mode= 'value' or 'advantage'
+    #   If 'value':
     #       Return saliency map(s) associated with the value estimate
-    #   If 'Advantage':
+    #   If 'advantage':
     #       Then the input action has to be set to the index of the desired action to compute saliency map for
+    # Returns 4xHxW dimensional 4 channel saliency map normalised in [-1,1] as a whole.
 
-    def getSaliencyMap(self, x, mode='value', action=None, PosNeg=False):
+    def getSaliencyMap(self, x, mode='value', action=None):
         if mode != 'value':
             if mode != 'advantage':
                 raise ValueError("mode needs to be 'value' or 'advantage'!")
@@ -119,24 +115,16 @@ class DuelCNN(nn.Module):
                 if action == None or action < 0:
                     raise ValueError("If mode=='advantage', set non-negative action index to input 'action'.")
         self.zero_grad()
-        inputs=torch.tensor(x, requires_grad = True, device=DEVICE, dtype=torch.float)
+        inputs = torch.tensor(x, requires_grad=True, device=DEVICE, dtype=torch.float)
         self.forward(inputs.unsqueeze(0))
-        if mode=='value':
+        if mode == 'value':
             self.valueEstimation.backward()
         else:
             self.advantageEstimation[0][action].backward()
-        saliency=inputs.grad.clone()
-        if PosNeg:
-            PosSaliency=saliency.clone()
-            NegSaliency=-1*saliency.clone()
-            AbsSaliency = torch.abs(saliency.clone())
-            PosSaliency=F.threshold(PosSaliency,0.0,0.0)/torch.max(AbsSaliency)
-            NegSaliency=F.threshold(NegSaliency,0.0,0.0)/torch.max(AbsSaliency)
-            return PosSaliency, NegSaliency
-        else:
-            AbsSaliency = torch.abs(saliency.clone())
-            saliency=saliency/torch.max(AbsSaliency)
-            return saliency
+        saliency = inputs.grad.clone()
+        AbsSaliency = torch.abs(saliency.clone())
+        saliency = saliency / torch.max(AbsSaliency)
+        return saliency
 
 
 class Agent:
@@ -183,46 +171,119 @@ class Agent:
         # Adam used as optimizer
         self.optimizer = optim.Adam(self.online_model.parameters(), lr=self.alpha)
 
+    def convertToPosNegSaliency(self, saliency):
+        possaliency=F.threshold(saliency,0.0,0.0)
+        negsaliency=F.threshold(-1*saliency,0.0,0.0)
+        return possaliency, negsaliency
+
+    def convertToAbsoluteSaliency(self, saliency):
+        return torch.abs(saliency)
+
+
+    def averageSaliencyMap(self, state, mode='value', action=None, threshold=0.0):
+        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = torch.sum(saliency, dim=0)
+        saliency = saliency / 4
+        if threshold > 0.0:
+            pos = F.threshold(saliency, threshold, 0.0)
+            neg = F.threshold(-1 * saliency, threshold, 0.0)
+            saliency = pos - neg
+        return saliency
+
+    def frameSaliencyMap(self, state, mode='value', action=None, threshold=0.0, lag=0):
+        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = saliency[lag]
+        if threshold > 0.0:
+            pos = F.threshold(saliency, threshold, 0.0)
+            neg = F.threshold(-1 * saliency, threshold, 0.0)
+            saliency = pos - neg
+        return saliency
+
     def preProcess(self, image):
         """
         Process image crop resize, grayscale and normalize the images
         """
-        #plt.imshow(image)
-        #plt.show()
+        # plt.imshow(image)
+        # plt.show()
         frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # To grayscale
-        #plt.imshow(frame, cmap='gray')
-        #plt.show()
+        # plt.imshow(frame, cmap='gray')
+        # plt.show()
         frame = frame[self.crop_dim[0]:self.crop_dim[1], self.crop_dim[2]:self.crop_dim[3]]  # Cut 20 px from top
-        #plt.imshow(frame, cmap='gray')
-        #plt.show()
+        # plt.imshow(frame, cmap='gray')
+        # plt.show()
         frame = cv2.resize(frame, (self.target_w, self.target_h))  # Resize
-        #plt.imshow(frame, cmap='gray')
-        #plt.show()
+        # plt.imshow(frame, cmap='gray')
+        # plt.show()
         frame = frame.reshape(self.target_w, self.target_h) / 255.0  # Normalize
-        #plt.imshow(frame, cmap='gray')
-        #plt.show()
+        # plt.imshow(frame, cmap='gray')
+        # plt.show()
         return frame
 
     def postProcess(self, frame):
         """
         Undo image crop, resize and normalization of the images
         """
-        #plt.imshow(frame, cmap='gray')
-        #plt.show()
-        img = frame.reshape(self.target_h, self.target_w)# * 255  # Normalize
-        #plt.imshow(img, cmap='gray')
-        #plt.show()
-        img = cv2.resize(img, (self.original_w, self.original_h-20))  # Resize
-        #plt.imshow(img, cmap='gray')
-        #plt.show()
-        bigimg = np.zeros(shape=(self.original_h,self.original_w))
-        #plt.imshow(bigimg, cmap='gray')
-        #plt.show()
-        bigimg[20:,:]=img
-        #plt.imshow(bigimg, cmap='gray')
-        #plt.show()
+        # plt.imshow(frame, cmap='gray')
+        # plt.show()
+        img = frame.reshape(self.target_h, self.target_w)  # * 255  # Normalize
+        # plt.imshow(img, cmap='gray')
+        # plt.show()
+        img = cv2.resize(img, (self.original_w, self.original_h - 20))  # Resize
+        # plt.imshow(img, cmap='gray')
+        # plt.show()
+        bigimg = np.zeros(shape=(self.original_h, self.original_w))
+        # plt.imshow(bigimg, cmap='gray')
+        # plt.show()
+        bigimg[20:, :] = img
+        # plt.imshow(bigimg, cmap='gray')
+        # plt.show()
 
         return bigimg
+
+    def getAbsoluteSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            saliency = self.convertToAbsoluteSaliency(self.averageSaliencyMap(state, mode=mode, action=action, threshold=threshold))
+        else:
+            saliency = self.convertToAbsoluteSaliency(self.frameSaliencyMap(state, mode=mode, action=action, threshold=threshold,lag=lag))
+        ataristate = self.postProcess(state[0])
+        saliency=saliency.cpu()
+        saliency+=state[0]
+        atarisaliency=self.postProcess(saliency.numpy())
+        img = torch.cat([torch.tensor(atarisaliency, dtype=torch.float).unsqueeze(0),
+                        torch.tensor(atarisaliency, dtype=torch.float).unsqueeze(0),
+                        torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+
+    def getPosNegSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.averageSaliencyMap(state, mode=mode, action=action, threshold=threshold))
+        else:
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.frameSaliencyMap(state, mode=mode, action=action, threshold=threshold,lag=lag))
+
+        ataristate = self.postProcess(state[0])
+        possaliency = possaliency.cpu()
+        negsaliency = negsaliency.cpu()
+        possaliency += state[0]  # Add state to saliency maps in order to get gray game image
+        negsaliency += state[0]
+        ataripossaliency = self.postProcess(possaliency.numpy())
+        atarinegsaliency = self.postProcess(negsaliency.numpy())
+        img = torch.cat([torch.tensor(atarinegsaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataripossaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+
 
     def act(self, state):
         """
@@ -343,7 +404,7 @@ if __name__ == "__main__":
             if RENDER_GAME_WINDOW:
                 environment.render()  # Show state visually
                 time.sleep(0.01)
-                possaliency, negsaliency=agent.online_model.getSaliencyMap(state, 'value', PosNeg=True)
+                possaliency, negsaliency = agent.online_model.getSaliencyMap(state, 'value', PosNeg=True)
                 """for i in range(4):
                     plt.subplot(1,4,i+1)
                     gray=torch.tensor(state[0]).unsqueeze(0)
@@ -366,8 +427,6 @@ if __name__ == "__main__":
 
             # Move to the next state
             state = next_state  # Update state
-
-
 
             if TRAIN_MODEL:
                 # Perform one step of the optimization (on the target network)
