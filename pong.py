@@ -268,81 +268,54 @@ class Agent:
 
         return bigimg
 
+    def averageSaliencyMap(self, state, mode='value', action=None):
+        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = torch.sum(saliency, dim=0)
+        saliency = saliency / 4
+        return saliency
+    def averageGuidedBP(self, state, mode='value', action=None):
+        saliency = self.online_model.getGuidedBP(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = torch.sum(saliency, dim=0)
+        saliency = saliency / 4
+        return saliency
+
+    def frameSaliencyMap(self, state, mode='value', action=None, lag=0):
+        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = saliency[lag]
+        return saliency
+    def frameGuidedBP(self, state, mode='value', action=None, lag=0):
+        saliency = self.online_model.getGuidedBP(state, mode=mode, action=action)
+        saliency = saliency.cpu()
+        saliency = saliency[lag]
+        return saliency
+
     def convertToPosNegSaliency(self, saliency):
         possaliency=F.threshold(saliency,0.0,0.0)
         negsaliency=F.threshold(-1*saliency,0.0,0.0)
         return possaliency, negsaliency
-
+    def convertToPositiveSaliency(self, saliency):
+        possaliency=F.threshold(saliency,0.0,0.0)
+        possaliency=possaliency/torch.max(possaliency)
+        return possaliency
+    def convertToNegativeSaliency(self, saliency):
+        negsaliency=F.threshold(-1*saliency,0.0,0.0)
+        negsaliency=negsaliency/torch.max(negsaliency)
+        return negsaliency
     def convertToAbsoluteSaliency(self, saliency):
         return torch.abs(saliency)
 
-
-    def averageSaliencyMap(self, state, mode='value', action=None, threshold=0.0):
-        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
-        saliency = saliency.cpu()
-        saliency = torch.sum(saliency, dim=0)
-        saliency = saliency / 4
-        if threshold > 0.0:
-            pos = F.threshold(saliency, threshold, 0.0)
-            neg = F.threshold(-1 * saliency, threshold, 0.0)
-            saliency = pos - neg
-        return saliency
-
-
-    def averageGuidedBP(self, state, mode='value', action=None, threshold=0.0):
-        saliency = self.online_model.getGuidedBP(state, mode=mode, action=action)
-        saliency = saliency.cpu()
-        saliency = torch.sum(saliency, dim=0)
-        saliency = saliency / 4
-        if threshold > 0.0:
-            pos = F.threshold(saliency, threshold, 0.0)
-            neg = F.threshold(-1 * saliency, threshold, 0.0)
-            saliency = pos - neg
-        return saliency
-
-
-    def frameSaliencyMap(self, state, mode='value', action=None, threshold=0.0, lag=0):
-        saliency = self.online_model.getSaliencyMap(state, mode=mode, action=action)
-        saliency = saliency.cpu()
-        saliency = saliency[lag]
-        if threshold > 0.0:
-            pos = F.threshold(saliency, threshold, 0.0)
-            neg = F.threshold(-1 * saliency, threshold, 0.0)
-            saliency = pos - neg
-        return saliency
-
-    def frameGuidedBP(self, state, mode='value', action=None, threshold=0.0, lag=0):
-        saliency = self.online_model.getGuidedBP(state, mode=mode, action=action)
-        saliency = saliency.cpu()
-        saliency = saliency[lag]
-        if threshold > 0.0:
-            pos = F.threshold(saliency, threshold, 0.0)
-            neg = F.threshold(-1 * saliency, threshold, 0.0)
-            saliency = pos - neg
-        return saliency
-
-    def getSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1, absolute=False):
-        if absolute:
-            img=self.getAbsoluteSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
-        else:
-            img=self.getPosNegSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
-        return img
-
-    def getGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1, absolute=False):
-        if absolute:
-            img=self.getAbsoluteGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
-        else:
-            img=self.getPosNegGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
-        return img
-
-
     def getAbsoluteSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
         if lag==-1:
-            saliency = self.convertToAbsoluteSaliency(self.averageSaliencyMap(state, mode=mode, action=action, threshold=threshold))
+            saliency = self.convertToAbsoluteSaliency(self.averageSaliencyMap(state, mode=mode, action=action))
         else:
-            saliency = self.convertToAbsoluteSaliency(self.frameSaliencyMap(state, mode=mode, action=action, threshold=threshold,lag=lag))
+            saliency = self.convertToAbsoluteSaliency(self.frameSaliencyMap(state, mode=mode, action=action,lag=lag))
         ataristate = self.postProcess(state[0])
         saliency=saliency.cpu()
+        if threshold > 0.0:
+            saliency = F.threshold(saliency, threshold, 0.0)
         saliency+=state[0]
         atarisaliency=self.postProcess(saliency.numpy())
         img = torch.cat([torch.tensor(atarisaliency, dtype=torch.float).unsqueeze(0),
@@ -354,16 +327,17 @@ class Agent:
         img[0:20, :] = atariimg[0:20, :] / 255.0
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return img
-
     def getAbsoluteGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
         if lag == -1:
             saliency = self.convertToAbsoluteSaliency(
-                self.averageGuidedBP(state, mode=mode, action=action, threshold=threshold))
+                self.averageGuidedBP(state, mode=mode, action=action))
         else:
             saliency = self.convertToAbsoluteSaliency(
-                self.frameGuidedBP(state, mode=mode, action=action, threshold=threshold, lag=lag))
+                self.frameGuidedBP(state, mode=mode, action=action, lag=lag))
         ataristate = self.postProcess(state[0])
         saliency = saliency.cpu()
+        if threshold > 0.0:
+            saliency = F.threshold(saliency, threshold, 0.0)
         saliency += state[0]
         atarisaliency = self.postProcess(saliency.numpy())
         img = torch.cat([torch.tensor(atarisaliency, dtype=torch.float).unsqueeze(0),
@@ -378,13 +352,16 @@ class Agent:
 
     def getPosNegSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
         if lag==-1:
-            possaliency, negsaliency = self.convertToPosNegSaliency(self.averageSaliencyMap(state, mode=mode, action=action, threshold=threshold))
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.averageSaliencyMap(state, mode=mode, action=action))
         else:
-            possaliency, negsaliency = self.convertToPosNegSaliency(self.frameSaliencyMap(state, mode=mode, action=action, threshold=threshold,lag=lag))
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.frameSaliencyMap(state, mode=mode, action=action, lag=lag))
 
         ataristate = self.postProcess(state[0])
         possaliency = possaliency.cpu()
         negsaliency = negsaliency.cpu()
+        if threshold > 0.0:
+            possaliency = F.threshold(possaliency, threshold, 0.0)
+            negsaliency = F.threshold(negsaliency, threshold, 0.0)
         possaliency += state[0]  # Add state to saliency maps in order to get gray game image
         negsaliency += state[0]
         ataripossaliency = self.postProcess(possaliency.numpy())
@@ -398,16 +375,18 @@ class Agent:
         img[0:20, :] = atariimg[0:20, :] / 255.0
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return img
-
     def getPosNegGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
         if lag==-1:
-            possaliency, negsaliency = self.convertToPosNegSaliency(self.averageGuidedBP(state, mode=mode, action=action, threshold=threshold))
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.averageGuidedBP(state, mode=mode, action=action))
         else:
-            possaliency, negsaliency = self.convertToPosNegSaliency(self.frameGuidedBP(state, mode=mode, action=action, threshold=threshold,lag=lag))
+            possaliency, negsaliency = self.convertToPosNegSaliency(self.frameGuidedBP(state, mode=mode, action=action, lag=lag))
 
         ataristate = self.postProcess(state[0])
         possaliency = possaliency.cpu()
         negsaliency = negsaliency.cpu()
+        if threshold > 0.0:
+            possaliency = F.threshold(possaliency, threshold, 0.0)
+            negsaliency = F.threshold(negsaliency, threshold, 0.0)
         possaliency += state[0]  # Add state to saliency maps in order to get gray game image
         negsaliency += state[0]
         ataripossaliency = self.postProcess(possaliency.numpy())
@@ -422,6 +401,119 @@ class Agent:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return img
 
+    def getPositiveSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            possaliency = self.convertToPositiveSaliency(self.averageSaliencyMap(state, mode=mode, action=action))
+        else:
+            possaliency = self.convertToPositiveSaliency(self.frameSaliencyMap(state, mode=mode, action=action, lag=lag))
+
+        ataristate = self.postProcess(state[0])
+        possaliency = possaliency.cpu()
+        if threshold > 0.0:
+            possaliency = F.threshold(possaliency, threshold, 0.0)
+        possaliency += state[0]  # Add state to saliency maps in order to get gray game image
+        ataripossaliency = self.postProcess(possaliency.numpy())
+        img = torch.cat([torch.tensor(ataristate, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataripossaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+    def getPositiveGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            possaliency = self.convertToPositiveSaliency(self.averageGuidedBP(state, mode=mode, action=action))
+        else:
+            possaliency = self.convertToPositiveSaliency(self.frameGuidedBP(state, mode=mode, action=action, lag=lag))
+
+        ataristate = self.postProcess(state[0])
+        possaliency = possaliency.cpu()
+        if threshold > 0.0:
+            possaliency = F.threshold(possaliency, threshold, 0.0)
+        possaliency += state[0]  # Add state to saliency maps in order to get gray game image
+        ataripossaliency = self.postProcess(possaliency.numpy())
+        img = torch.cat([torch.tensor(ataristate, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataripossaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+
+    def getNegativeSaliencyImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            negsaliency = self.convertToNegativeSaliency(self.averageSaliencyMap(state, mode=mode, action=action))
+        else:
+            negsaliency = self.convertToNegativeSaliency(self.frameSaliencyMap(state, mode=mode, action=action, lag=lag))
+
+        ataristate = self.postProcess(state[0])
+        negsaliency = negsaliency.cpu()
+        if threshold > 0.0:
+            negsaliency = F.threshold(negsaliency, threshold, 0.0)
+        # Add state to saliency maps in order to get gray game image
+        negsaliency += state[0]
+        atarinegsaliency = self.postProcess(negsaliency.numpy())
+        img = torch.cat([torch.tensor(atarinegsaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+    def getNegativeGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
+        if lag==-1:
+            negsaliency = self.convertToNegativeSaliency(self.averageGuidedBP(state, mode=mode, action=action))
+        else:
+            negsaliency = self.convertToNegativeSaliency(self.frameGuidedBP(state, mode=mode, action=action, lag=lag))
+
+        ataristate = self.postProcess(state[0])
+        negsaliency = negsaliency.cpu()
+        if threshold > 0.0:
+            negsaliency = F.threshold(negsaliency, threshold, 0.0)
+        # Add state to saliency maps in order to get gray game image
+        negsaliency += state[0]
+        atarinegsaliency = self.postProcess(negsaliency.numpy())
+        img = torch.cat([torch.tensor(atarinegsaliency, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0),
+                         torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
+        img = img / torch.max(img)
+        img = img.transpose(0, 2).transpose(0, 1).numpy()
+        # print(np.max(img))
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        return img
+
+
+    def getSaliencyMapImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1, type='PosNeg'):
+        if type!='PosNeg' and type!='Positive' and type!='Negative' and type!='Absolute':
+            raise ValueError("type must be 'PosNeg', 'Positive', 'Negative' or 'Absolute'")
+        elif type=='PosNeg':
+            img=self.getPosNegSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Positive':
+            img=self.getPositiveSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Negative':
+            img=self.getNegativeSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Absolute':
+            img=self.getAbsoluteSaliencyImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        return img
+    def getGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1, type='PosNeg'):
+        if type!='PosNeg' and type!='Positive' and type!='Negative' and type!='Absolute':
+            raise ValueError("type must be 'PosNeg', 'Positive', 'Negative' or 'Absolute'")
+        elif type=='PosNeg':
+            img=self.getPosNegGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Positive':
+            img=self.getPositiveGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Negative':
+            img=self.getNegativeGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        elif type=='Absolute':
+            img=self.getAbsoluteGuidedBPImage(state,atariimg,mode=mode,action=action, threshold=threshold,lag=lag)
+        return img
 
     def act(self, state):
         """

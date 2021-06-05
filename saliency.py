@@ -28,7 +28,7 @@ LOAD_FILE_EPISODE = 900  # Load Xth episode from file
 MAX_EPISODE = 100000  # Max episode
 MAX_STEP = 100000  # Max step size for one episode
 
-START_VIEW = 200
+START_VIEW = 20
 
 EPSILON = 0.0  # Epsilon
 
@@ -36,12 +36,13 @@ RENDER_GYM_WINDOW = False  # Opens a new window to render the game (Won't work o
 RENDER_CV_WINDOW = True
 
 # SALIENCY HYPERPARAMETERS
-THRESHOLD=0.2
-MODE='advantage' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
+THRESHOLD=0.0
+MODE='value' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
 ACTION=0
 CHOSENACTION=True # If this is true, ACTION will be updated each frame with the action that the agent chose last
-ABSOLUTE=False # If True, agent.get<METHOD>Image returns absolute value of the output, if False, the positive and negative outputs are visualised with green and red
+TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute'
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
+METHOD="GuidedBP" # Currently "GuidedBP" or "SaliencyMap"
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
@@ -69,11 +70,19 @@ if __name__ == "__main__":
                 ACTION=action
             environment.render()
             ataristate = agent.postProcess(state[0])
-            img0=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,absolute=ABSOLUTE)
-            img1=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,absolute=ABSOLUTE)
-            img2=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,absolute=ABSOLUTE)
-            img3=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,absolute=ABSOLUTE)
-            img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,absolute=ABSOLUTE)
+            if METHOD=="SaliencyMap":
+                img0=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
+                img1=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,type=TYPE)
+                img2=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,type=TYPE)
+                img3=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,type=TYPE)
+                img4=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
+            elif METHOD=="GuidedBP":
+                img0=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
+                img1=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,type=TYPE)
+                img2=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,type=TYPE)
+                img3=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,type=TYPE)
+                img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
+
             if step > START_VIEW:
                 # plt.imshow(img)
                 # plt.show()
