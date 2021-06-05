@@ -36,9 +36,11 @@ RENDER_GYM_WINDOW = False  # Opens a new window to render the game (Won't work o
 RENDER_CV_WINDOW = True
 
 # SALIENCY HYPERPARAMETERS
-THRESHOLD=0.55
-MODE='value' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
+THRESHOLD=0.2
+MODE='advantage' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
 ACTION=0
+CHOSENACTION=True # If this is true, ACTION will be updated each frame with the action that the agent chose last
+ABSOLUTE=False # If True, agent.get<METHOD>Image returns absolute value of the output, if False, the positive and negative outputs are visualised with green and red
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
@@ -63,20 +65,15 @@ if __name__ == "__main__":
         for step in range(MAX_STEP):
             # Select and perform an action
             action = agent.act(state)  # Act
-            ACTION=action
+            if CHOSENACTION:
+                ACTION=action
             environment.render()
             ataristate = agent.postProcess(state[0])
-
-            img0=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0)
-            #img0=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0)
-            img1=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1)
-            #img1=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1)
-            img2=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2)
-            #img2=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2)
-            img3=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3)
-            #img3=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3)
-            img4=agent.getPosNegSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1)
-            #img4=agent.getAbsoluteSaliencyImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1)
+            img0=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,absolute=ABSOLUTE)
+            img1=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,absolute=ABSOLUTE)
+            img2=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,absolute=ABSOLUTE)
+            img3=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,absolute=ABSOLUTE)
+            img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,absolute=ABSOLUTE)
             if step > START_VIEW:
                 # plt.imshow(img)
                 # plt.show()
