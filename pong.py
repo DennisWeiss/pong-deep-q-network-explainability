@@ -18,7 +18,7 @@ ENVIRONMENT = "PongDeterministic-v4"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
-MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
+MODEL_PATH = "/Users/ege/Documents/Code/pong-deep-q-network-explainability/pong-cnn-"  # Models path for saving or loading
 SAVE_MODEL_INTERVAL = 10  # Save models at every X epoch
 TRAIN_MODEL = False  # Train model while playing (Make it False when testing a model)
 
@@ -55,6 +55,7 @@ class DuelCNN(nn.Module):
         self.bn3 = nn.BatchNorm2d(64)
         convw, convh = self.conv2d_size_calc(convw, convh, kernel_size=3, stride=1)
 
+        # Linear Input Size
         linear_input_size = convw * convh * 64  # Last conv layer's out sizes
 
         # Action layer
@@ -246,8 +247,11 @@ if __name__ == "__main__":
 
         startTime = time.time()  # Keep time
         state = environment.reset()  # Reset env
-
         state = agent.preProcess(state)  # Process image
+        atariimg = state
+        print(atariimg)
+        img[0:20, :] = atariimg[0:20, :] / 255.0
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         # Stack state . Every state contains 4 time contionusly frames
         # We stack frames like 4 channel image
@@ -322,3 +326,4 @@ if __name__ == "__main__":
                         outfile.write(outStr+"\n")
 
                 break
+
