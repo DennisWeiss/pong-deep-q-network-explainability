@@ -5,13 +5,17 @@ import time
 import json
 import random
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from game_data import get_image_data
 
 from collections import deque
+
 
 ENVIRONMENT = "PongDeterministic-v4"
 
@@ -143,7 +147,6 @@ class Agent:
         frame = frame[self.crop_dim[0]:self.crop_dim[1], self.crop_dim[2]:self.crop_dim[3]]  # Cut 20 px from top
         frame = cv2.resize(frame, (self.target_w, self.target_h))  # Resize
         frame = frame.reshape(self.target_w, self.target_h) / 255  # Normalize
-
         return frame
 
     def act(self, state):
@@ -247,11 +250,12 @@ if __name__ == "__main__":
 
         startTime = time.time()  # Keep time
         state = environment.reset()  # Reset env
+        state_to_show = state
         state = agent.preProcess(state)  # Process image
         atariimg = state
-        print(atariimg)
-        img[0:20, :] = atariimg[0:20, :] / 255.0
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #print(atariimg)
+        #img = atariimg[0:20, :] / 255.0
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         # Stack state . Every state contains 4 time contionusly frames
         # We stack frames like 4 channel image
@@ -260,14 +264,22 @@ if __name__ == "__main__":
         total_max_q_val = 0  # Total max q vals
         total_reward = 0  # Total reward for each episode
         total_loss = 0  # Total loss for each episode
+
         for step in range(MAX_STEP):
 
             if RENDER_GAME_WINDOW:
                 environment.render()  # Show state visually
 
+                #cv2.imshow(atariimg)
+
             # Select and perform an action
             action = agent.act(state)  # Act
             next_state, reward, done, info = environment.step(action)  # Observe
+
+            img_input = get_image_data(state_to_show)
+
+
+            cv2.imshow('', np.uint8(img_input * 255))
 
             next_state = agent.preProcess(next_state)  # Process image
 
@@ -318,7 +330,7 @@ if __name__ == "__main__":
                     episode, current_time_format, total_reward, total_loss, np.mean(last_100_ep_reward), avg_max_q_val, agent.epsilon, time_passed, step, total_step
                 )
 
-                print(outStr)
+                #print(outStr)
 
                 if SAVE_MODELS:
                     outputPath = MODEL_PATH + "out" + '.txt'  # Save outStr to file
