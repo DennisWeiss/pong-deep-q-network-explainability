@@ -279,7 +279,7 @@ if __name__ == "__main__":
             img_input = get_image_data(state_to_show)
 
 
-            cv2.imshow('', np.uint8(img_input * 255))
+            #cv2.imshow('', np.uint8(img_input * 255))
 
             next_state = agent.preProcess(next_state)  # Process image
 
