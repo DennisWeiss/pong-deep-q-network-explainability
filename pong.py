@@ -13,6 +13,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from game_data import get_image_data
+from config import get_config
+from xitari_python_interface import ALEInterface, ale_fillRgbFromPalette
 
 from collections import deque
 
