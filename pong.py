@@ -13,7 +13,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from game_data import get_image_data
-from config import get_config
 from xitari_python_interface import ALEInterface, ale_fillRgbFromPalette
 
 from collections import deque
@@ -24,7 +23,7 @@ ENVIRONMENT = "PongDeterministic-v4"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
-MODEL_PATH = "/Users/ege/Documents/Code/pong-deep-q-network-explainability/pong-cnn-"  # Models path for saving or loading
+MODEL_PATH = "/Users/ege/PycharmProjects/pong-deep-q-network-explainability/pong-cnn-"  # Models path for saving or loading
 SAVE_MODEL_INTERVAL = 10  # Save models at every X epoch
 TRAIN_MODEL = False  # Train model while playing (Make it False when testing a model)
 
@@ -232,6 +231,8 @@ class Agent:
 
 
 if __name__ == "__main__":
+    roms = 'roms/Pong2PlayerVS.bin'
+    ale = ALEInterface(roms.encode('utf-8'))
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
 
@@ -248,8 +249,10 @@ if __name__ == "__main__":
 
     last_100_ep_reward = deque(maxlen=100)  # Last 100 episode rewards
     total_step = 1  # Cumulkative sum of all steps in episodes
-    for episode in range(startEpisode, MAX_EPISODE):
 
+
+    for episode in range(startEpisode, MAX_EPISODE):
+        total_points, paddle_bounce, wall_bounce, serving_time = [], [], [], []
         startTime = time.time()  # Keep time
         state = environment.reset()  # Reset env
         state_to_show = state
@@ -268,7 +271,7 @@ if __name__ == "__main__":
         total_loss = 0  # Total loss for each episode
 
         for step in range(MAX_STEP):
-
+            cur_total_points, cur_paddle_bounce, cur_wall_bounce, cur_serving_time = 0, 0, 0, 0
             if RENDER_GAME_WINDOW:
                 environment.render()  # Show state visually
 
@@ -300,6 +303,18 @@ if __name__ == "__main__":
                 loss, max_q_val = agent.train()  # Train with random BATCH_SIZE state taken from mem
             else:
                 loss, max_q_val = [0, 0]
+
+            cur_total_points = ale.ale_getPoints()
+            cur_paddle_bounce = ale.ale_getSideBouncing()
+            if ale.ale_getWallBouncing():
+              cur_wall_bounce += 1
+            if ale.ale_getServing():
+              cur_serving_time += 1
+
+            # Append current episode's statistics into list
+            paddle_bounce.append(cur_paddle_bounce)
+
+            print(paddle_bounce)
 
             total_loss += loss
             total_max_q_val += max_q_val
