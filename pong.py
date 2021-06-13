@@ -17,7 +17,7 @@ from xitari_python_interface import ALEInterface, ale_fillRgbFromPalette
 
 from collections import deque
 
-
+#ENVIRONMENT = "Pong2PlayerVS"
 ENVIRONMENT = "PongDeterministic-v4"
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -233,7 +233,11 @@ class Agent:
 if __name__ == "__main__":
     roms = 'roms/Pong2PlayerVS.bin'
     ale = ALEInterface(roms.encode('utf-8'))
+    #ale = ALEInterface(ENVIRONMENT)
+
+
     environment = gym.make(ENVIRONMENT)  # Get env
+    environment = ale
     agent = Agent(environment)  # Create Agent
 
     if LOAD_MODEL_FROM_FILE:
