@@ -231,7 +231,7 @@ class Agent:
 
 
 if __name__ == "__main__":
-    roms = 'roms/Pong2PlayerVS.bin'
+    roms = 'roms/Pong.bin'
     ale = ALEInterface(roms.encode('utf-8'))
     #ale = ALEInterface(ENVIRONMENT)
 
