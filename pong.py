@@ -20,6 +20,7 @@ from collections import deque
 #ENVIRONMENT = "Pong2PlayerVS"
 ENVIRONMENT = "Pong-v0"
 
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
@@ -319,6 +320,7 @@ if __name__ == "__main__":
             paddle_bounce.append(cur_paddle_bounce)
 
             print(paddle_bounce)
+
 
             total_loss += loss
             total_max_q_val += max_q_val

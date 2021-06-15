@@ -1,10 +1,10 @@
-from ale_py import ALEInterface
+from xitari_python_interface import ALEInterface
 
-ale = ALEInterface()
+roms = 'roms/Pong.bin'
 
-roms = 'roms/pong.bin'
+ale = ALEInterface(roms.encode('utf-8'))
 
-ale.loadROM(roms)
+ale.ale_getSideBouncing()
 
 #cur_total_points = ale.ale_getPoints()
 #cur_paddle_bounce = ale.

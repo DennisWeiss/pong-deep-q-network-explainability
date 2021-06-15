@@ -3,7 +3,6 @@ from ale_py import ALEInterface
 
 ale = ALEInterface()
 
-
 #ENVIRONMENT = "Pong2Player"
 #ENVIRONMENT = "Pong-v0"
 #environment = gym.make(ENVIRONMENT)  # Get env
