@@ -42,7 +42,7 @@ ACTION=0
 CHOSENACTION=True # If this is true, ACTION will be updated each frame with the action that the agent chose last
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute'
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
-METHOD="SaliencyMap" # Currently "GuidedBP" or "SaliencyMap"
+METHOD="GuidedBP" # Currently "GuidedBP" or "SaliencyMap"
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
@@ -52,6 +52,8 @@ if __name__ == "__main__":
         param = json.load(outfile)
         agent.epsilon = param.get('epsilon')
         startEpisode = LOAD_FILE_EPISODE + 1
+    last_100_ep_reward = deque(maxlen=100)  # Last 100 episode rewards
+    total_step = 1  # Cumulative sum of all steps in episodes
     for episode in range(startEpisode, MAX_EPISODE):
         state = environment.reset()  # Reset env
         atariimg = state
@@ -68,8 +70,6 @@ if __name__ == "__main__":
                 ACTION=action
             environment.render()
             ataristate = agent.postProcess(state[0])
-
-
             if METHOD=="SaliencyMap":
                 img0=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
                 img1=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,type=TYPE)
