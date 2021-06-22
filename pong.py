@@ -238,7 +238,7 @@ if __name__ == "__main__":
 
 
     environment = gym.make(ENVIRONMENT)  # Get env
-    #environment = ale
+    environment = ale
     agent = Agent(environment)  # Create Agent
 
     if LOAD_MODEL_FROM_FILE:
