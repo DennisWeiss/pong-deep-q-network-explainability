@@ -54,7 +54,7 @@ COLOR= 0.25098039215686274 # Grayscale value between 0 and 1 for the occlusion b
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
-    agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
+    agent.online_model.load_state_dict(torch.load("/Users/ege/PycharmProjects/saliency-galip/pong-deep-q-network-explainability/models/model.80.tar", map_location="cpu"))
     agent.online_model.eval()
     with open(MODEL_PATH + str(LOAD_FILE_EPISODE) + '.json') as outfile:
         param = json.load(outfile)

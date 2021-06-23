@@ -11,8 +11,16 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.autograd import Variable
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+import torch.nn.functional as F
+
+import numpy as np
 
 from collections import deque
+from policy import NNPolicy
 
 def Gaussian2DMatrix(mu,sigma, size):
     x,y=np.meshgrid()
@@ -43,7 +51,7 @@ ALPHA = 0.00025  # Learning rate
 EPSILON_DECAY = 0.99  # Epsilon decay rate by step
 
 RENDER_GAME_WINDOW = True  # Opens a new window to render the game (Won't work on colab default)
-
+NUM_ACTIONS = 6
 
 class DuelCNN(nn.Module):
     """
@@ -224,8 +232,10 @@ class Agent:
         self.memory = deque(maxlen=MAX_MEMORY_LEN)
 
         # Create two model for DDQN algorithm
-        self.online_model = DuelCNN(h=self.target_h, w=self.target_w, output_size=self.action_size).to(DEVICE)
-        self.target_model = DuelCNN(h=self.target_h, w=self.target_w, output_size=self.action_size).to(DEVICE)
+        self.online_model = NNPolicy(channels=1, num_actions=NUM_ACTIONS)
+        self.target_model = NNPolicy(channels=1, num_actions=NUM_ACTIONS)
+        #self.online_model = DuelCNN(h=self.target_h, w=self.target_w, output_size=self.action_size).to(DEVICE)
+        #self.target_model = DuelCNN(h=self.target_h, w=self.target_w, output_size=self.action_size).to(DEVICE)
         self.target_model.load_state_dict(self.online_model.state_dict())
         self.target_model.eval()
 
@@ -811,8 +821,14 @@ class Agent:
         else:
             with torch.no_grad():
                 state = torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0)
-                q_values = self.online_model.forward(state)  # (1, action_size)
-                action = torch.argmax(q_values).item()  # Returns the indices of the maximum value of all elements
+                #hx, cx = Variable(torch.zeros(1, 256)), Variable(torch.zeros(1, 256))
+                value, logit, (hx, cx) = self.online_model((Variable(state.view(1, 1, 80, 80)), (self.hx, self.cx)))
+                # hx, cx = Variable(hx.data), Variable(cx.data)
+                prob = F.softmax(logit)
+
+                action = prob.max(1)[1].data  # prob.multinomial().data[0] #
+                hxi  = self.online_model.forward(state)  # (1, action_size)
+                #action = torch.argmax(q_values).item()  # Returns the indices of the maximum value of all elements
 
         return action
 
@@ -883,7 +899,9 @@ if __name__ == "__main__":
     agent = Agent(environment)  # Create Agent
 
     if LOAD_MODEL_FROM_FILE:
-        agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
+
+        load_dir = "/Users/ege/PycharmProjects/saliency-galip/pong-deep-q-network-explainability/models/model.80.tar"
+        agent.online_model.try_load(load_dir, checkpoint='*.tar'); torch.manual_seed(1)
         with open(MODEL_PATH + str(LOAD_FILE_EPISODE) + '.json') as outfile:
             param = json.load(outfile)
             agent.epsilon = param.get('epsilon')
@@ -904,7 +922,7 @@ if __name__ == "__main__":
 
         # Stack state . Every state contains 4 consecutive frames
         # We stack frames like 4 channel image
-        state = np.stack((state, state, state, state))
+        # state = np.stack((state, state, state, state))
 
         total_max_q_val = 0  # Total max q vals
         total_reward = 0  # Total reward for each episode
@@ -959,7 +977,7 @@ if __name__ == "__main__":
                 epsilonDict = {'epsilon': agent.epsilon}  # Create epsilon dict to save model as file
 
                 if SAVE_MODELS and episode % SAVE_MODEL_INTERVAL == 0:  # Save model as file
-                    weightsPath = MODEL_PATH + str(episode) + '.pkl'
+                    weightsPath = '/Users/ege/PycharmProjects/saliency-galip/pong-deep-q-network-explainability/models/model.80.tar'
                     epsilonPath = MODEL_PATH + str(episode) + '.json'
 
                     torch.save(agent.online_model.state_dict(), weightsPath)
