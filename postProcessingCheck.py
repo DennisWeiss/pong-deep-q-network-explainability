@@ -44,6 +44,7 @@ TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute'
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 METHOD="SaliencyMap" # Currently "GuidedBP" or "SaliencyMap"
 if __name__ == "__main__":
+
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
     agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
@@ -69,6 +70,23 @@ if __name__ == "__main__":
             environment.render()
             ataristate = agent.postProcess(state[0])
 
+            orig=state[0]
+            post=agent.postProcess(state[0])
+            prepost=agent.preProcess(post,singleChannel=True)
+            cv2.imshow("original state", orig)
+            cv2.imshow("postprocessed state", post)
+            cv2.imshow("preprocessed postprocessed state", prepost)
+            print(prepost==orig)
+            print(np.linalg.norm(prepost-orig))
+            cv2.waitKey()
+
+
+
+
+
+
+
+
 
             if METHOD=="SaliencyMap":
                 img0=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
@@ -87,10 +105,10 @@ if __name__ == "__main__":
                 # plt.imshow(img)
                 # plt.show()
                 cv2.imshow("Frame-0 (Last Frame)", img0)
-                cv2.imshow("Frame-1", img1)
-                cv2.imshow("Frame-2", img2)
-                cv2.imshow("Frame-3", img3)
-                cv2.imshow("Average Saliency", img4)
+                #cv2.imshow("Frame-1", img1)
+                #cv2.imshow("Frame-2", img2)
+                #cv2.imshow("Frame-3", img3)
+                #cv2.imshow("Average Saliency", img4)
                 cv2.waitKey(60)
 
             next_state, reward, done, info = environment.step(action)  # Observe

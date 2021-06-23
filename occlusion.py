@@ -37,16 +37,19 @@ RENDER_CV_WINDOW = True
 
 # Occlusion HYPERPARAMETERS
 THRESHOLD=0.0
-MODE='value' # 'value' or 'advantage', if 'advantage', parameter action=ACTION needs to be valid
-ACTION=0 # set -1 if you want saliency map for the whole action advantage vector
-CHOSENACTION=True # If this is true, ACTION will be updated each frame with the action that the agent chose last
+MODE='advantage' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
+# 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
+# The MODE determines what values will be used to compute the occlusion maps
+ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
+CHOSENACTION=False # If this is true, ACTION will be updated each frame with the action that the agent chose last
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
 CONCURRENT = False # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
-SIZE=5
+METRIC="KL" # What value to compute from logits
+SIZE=8
 STRIDE=3
-COLOR=0.35 # Grayscale value between 0 and 1 for the occlusion box color
+COLOR= 0.25098039215686274 # Grayscale value between 0 and 1 for the occlusion box color
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
@@ -87,7 +90,7 @@ if __name__ == "__main__":
                 img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
             elif METHOD=="Box":
                 if step>START_VIEW:
-                    img=agent.getBoxOcclusionImage(state, atariimg, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT)
+                    img=agent.getBoxOcclusionImage(state, atariimg, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
 
             if step > START_VIEW:
                 # plt.imshow(img)

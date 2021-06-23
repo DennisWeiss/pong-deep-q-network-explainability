@@ -86,6 +86,8 @@ if __name__ == "__main__":
             if step > START_VIEW:
                 # plt.imshow(img)
                 # plt.show()
+                img=agent.postProcess(state[0])
+                cv2.imshow("Reconstructed",img)
                 cv2.imshow("Frame-0 (Last Frame)", img0)
                 cv2.imshow("Frame-1", img1)
                 cv2.imshow("Frame-2", img2)

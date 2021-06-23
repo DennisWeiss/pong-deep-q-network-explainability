@@ -14,6 +14,11 @@ import torch.nn.functional as F
 
 from collections import deque
 
+def Gaussian2DMatrix(mu,sigma, size):
+    x,y=np.meshgrid()
+def KLDivergence(p,q):
+    return torch.dot(p,(torch.log(p)-torch.log(q)))
+
 ENVIRONMENT = "PongDeterministic-v4"
 
 DEVICE = "cpu"#torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -231,7 +236,8 @@ class Agent:
         """
         Process image crop resize, grayscale and normalize the images
         """
-        cv2.imshow("1", image)
+        #cv2.imshow("1", image)
+        #cv2.waitKey()
         # plt.show()
         if not singleChannel:
             frame = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # To grayscale
@@ -275,49 +281,60 @@ class Agent:
         # cv2.waitKey()
         return img#bigimg
 
-    def computeActivationDifference(self, state, occluded, mode='value', action=None):
+    def computeActivationDifference(self, state, occluded, mode='value', action=None, metric="KL"):
         if mode != 'value':
-            if mode != 'advantage':
-                raise ValueError("mode needs to be 'value' or 'advantage'!")
+            if mode != 'advantage' and mode!= 'action':
+                raise ValueError("mode needs to be 'value', 'action' or 'advantage'!")
             else:
                 if action == None or action < -1:
-                    raise ValueError("If mode=='advantage', set non-negative action index or -1 to input 'action'.")
-        self.online_model.forward(torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0))
+                    raise ValueError("If mode=='advantage' or 'action', set non-negative action index or -1 to input 'action'.")
+        baseline=self.online_model.forward(torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0))
         if mode=='value':
             baseline=self.online_model.valueEstimation.detach().cpu()
-        else:
+        elif mode=='advantage':
             baseline=self.online_model.advantageEstimation.detach().cpu()
-        self.online_model.forward(torch.tensor(occluded, dtype=torch.float, device=DEVICE).unsqueeze(0))
+
+        occl=self.online_model.forward(torch.tensor(occluded, dtype=torch.float, device=DEVICE).unsqueeze(0))
         if mode=='value':
             occl=self.online_model.valueEstimation.detach().cpu()
-        else:
+        elif mode=='advantage':
             occl=self.online_model.advantageEstimation.detach().cpu()
         diff=baseline-occl
-        if mode=='advantage' and action!=-1:
+        if (mode=='advantage' or mode=='action') and action!=-1:
             diff=diff[action]
-        return torch.linalg.norm(diff)
-    # STRIDE IS NOT IMPELEMENTED. RIGHT NOW STRIDE=SIZE IS ASSUMED.
-    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=0.5, concurrent=False):
+        if metric=="KL":
+            return KLDivergence(F.softmax(baseline,dim=1).squeeze(0),F.softmax(occl,dim=1).squeeze(0))
+        if metric=="JS":
+            p=F.softmax(baseline,dim=1).squeeze(0)
+            q=F.softmax(occl,dim=1).squeeze(0)
+            r=(p+q)/2.0
+            return 0.5*(KLDivergence(p,r)+KLDivergence(q,r))
+        if metric=="Norm":
+            return torch.linalg.norm(diff)
+
+
+    # STRIDE IS NOT IMPLEMENTED. RIGHT NOW STRIDE=SIZE IS ASSUMED.
+    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=0.5, concurrent=False, metric="KL"):
         shape=self.postProcess(state[0]).shape
         imgs=np.zeros((4, shape[0], shape[1]))
         imgs[0]=self.postProcess(state[0])
         imgs[1]=self.postProcess(state[1])
         imgs[2]=self.postProcess(state[2])
         imgs[3]=self.postProcess(state[3])
+        #print(imgs[0])
+        if not (self.preProcess(imgs[0], singleChannel=True)==state[0]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[1], singleChannel=True)==state[1]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[2], singleChannel=True)==state[2]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[3], singleChannel=True)==state[3]).all():
+            raise ValueError("Something went wrong")
 
-        if not (self.preProcess(imgs[0],singleChannel=True)==state[0]).all():
-            raise ValueError("Something went wrong")
-        if not (self.preProcess(imgs[1],singleChannel=True)==state[1]).all():
-            raise ValueError("Something went wrong")
-        if not (self.preProcess(imgs[2],singleChannel=True)==state[2]).all():
-            raise ValueError("Something went wrong")
-        if not (self.preProcess(imgs[3],singleChannel=True)==state[3]).all():
-            raise ValueError("Something went wrong")
-
-        cv2.imshow("imgs[0]", imgs[0])
-        cv2.waitKey(10)
-        retimg=torch.zeros(imgs.shape)
-        ret=torch.zeros(4,shape[0]//size,shape[1]//size)
+        #cv2.imshow("imgs[0]", imgs[0])
+        #cv2.waitKey(10)
+        retimg=torch.zeros(imgs.shape) # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
+        ret=torch.zeros(4,shape[0]//size,shape[1]//size) # Tensor with one entry for each occlusion trial for the 4 frames. If concurrent=True, all 4 maps are identical.
         for i in range(shape[0]//size):
             for j in range(shape[1]//size):
                 box=np.zeros((4,shape[0],shape[1]))
@@ -328,12 +345,12 @@ class Agent:
                         box[k,i*size:(i+1)*size,j*size:(j+1)*size]=littlebox
                     states=np.copy(imgs)
                     states[box>0]=box[box>0] # Occlusion
-                    newstates[0]=self.preProcess(states[0],singleChannel=True)
-                    newstates[1]=self.preProcess(states[1],singleChannel=True)
-                    newstates[2]=self.preProcess(states[2],singleChannel=True)
-                    newstates[3]=self.preProcess(states[3],singleChannel=True)
+                    newstates[0]=self.preProcess(states[0], singleChannel=True)
+                    newstates[1]=self.preProcess(states[1], singleChannel=True)
+                    newstates[2]=self.preProcess(states[2], singleChannel=True)
+                    newstates[3]=self.preProcess(states[3], singleChannel=True)
                     # COMPUTE ACTIVATION DIFFERENCE
-                    sal=self.computeActivationDifference(state, newstates, mode=mode, action=action)
+                    sal=self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
                     # RECORD SALIENCY
                     for k in range(4):
                         ret[k,i,j]=sal
@@ -348,22 +365,21 @@ class Agent:
                         newstates[2] = self.preProcess(states[2], singleChannel=True)
                         newstates[3] = self.preProcess(states[3], singleChannel=True)
                         # COMPUTE ACTIVATION DIFFERENCE
-                        sal=self.computeActivationDifference(state, newstates, mode=mode, action=action)
+                        sal=self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
                         # RECORD SALIENCY
                         ret[k,i,j]=sal
                         retimg[k,i*size:(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
                         box = np.zeros((4, shape[0], shape[1]))
-                        a="""cv2.imshow("Orig-0", imgs[0])
-                        cv2.imshow("Orig-1", imgs[1])
-                        cv2.imshow("Orig-2", imgs[2])
-                        cv2.imshow("Orig-3", imgs[3])
+                        #cv2.imshow("Orig-0", imgs[0])
+                        #cv2.imshow("Orig-1", imgs[1])
+                        #cv2.imshow("Orig-2", imgs[2])
+                        #cv2.imshow("Orig-3", imgs[3])
 
-                        cv2.imshow("Occluded-0", states[0])
-                        cv2.imshow("Occluded-1", states[1])
-                        cv2.imshow("Occluded-2", states[2])
-                        cv2.imshow("Occluded-3", states[3])
-                        print("waitkey3")
-                        cv2.waitKey()"""
+                        #cv2.imshow("Occluded-0", states[0])
+                        #cv2.imshow("Occluded-1", states[1])
+                        #cv2.imshow("Occluded-2", states[2])
+                        #cv2.imshow("Occluded-3", states[3])
+                        #cv2.waitKey()
         return retimg
 
 
@@ -501,6 +517,8 @@ class Agent:
                 self.frameSaliencyMap(state, mode=mode, action=action, lag=lag))
 
         ataristate = self.postProcess(state[0])
+        #cv2.imshow("ataristate",ataristate)
+        #cv2.waitKey()
         possaliency = possaliency.cpu()
         negsaliency = negsaliency.cpu()
         if threshold > 0.0:
@@ -510,14 +528,15 @@ class Agent:
         # negsaliency += state[0]
         ataripossaliency = self.postProcess(possaliency.numpy())
         atarinegsaliency = self.postProcess(negsaliency.numpy())
-        img = torch.cat([torch.tensor(atarinegsaliency, dtype=torch.float).unsqueeze(0),
-                         torch.tensor(ataripossaliency, dtype=torch.float).unsqueeze(0),
+        img = torch.cat([torch.zeros(atarinegsaliency.shape, dtype=torch.float).unsqueeze(0),
+                         torch.zeros(ataripossaliency.shape, dtype=torch.float).unsqueeze(0),
                          torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
         img = img / torch.max(img)
         img = img.transpose(0, 2).transpose(0, 1).numpy()
         # print(np.max(img))
         # img[0:20, :] = atariimg[0:20, :] / 255.0
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = ataristate/np.max(ataristate)
         return img
 
     def getPosNegGuidedBPImage(self, state, atariimg, mode='value', action=None, threshold=0.0, lag=-1):
@@ -693,10 +712,10 @@ class Agent:
         return img
 
     def getBoxOcclusionImage(self, state, atariimg, mode='value', action=None, threshold=0.0, size=3,
-                                   stride=3, color=0.5,concurrent=False):
+                                   stride=3, color=0.5,concurrent=False, metric="KL"):
 
         ataristate = self.postProcess(state[0])
-        occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent)
+        occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
         occmap = occmap.cpu()
         occmap/=torch.max(occmap)
         if threshold > 0.0:
@@ -705,8 +724,8 @@ class Agent:
         # negsaliency += state[0]
         occlusion_maps=[]
         for i in range(4):
-            map=torch.cat([torch.tensor(occmap[i], dtype=torch.float).unsqueeze(0),
-                             torch.tensor(occmap[i], dtype=torch.float).unsqueeze(0),
+            map=torch.cat([occmap[i].detach().clone().unsqueeze(0),
+                             occmap[i].detach().clone().unsqueeze(0),
                              torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
             #img = img / torch.max(img)
             map = map.transpose(0, 2).transpose(0, 1).numpy()
