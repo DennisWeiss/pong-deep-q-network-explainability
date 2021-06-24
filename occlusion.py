@@ -28,7 +28,7 @@ LOAD_FILE_EPISODE = 900  # Load Xth episode from file
 MAX_EPISODE = 100000  # Max episode
 MAX_STEP = 100000  # Max step size for one episode
 
-START_VIEW = 20
+START_VIEW = 50
 
 EPSILON = 0.0  # Epsilon
 
@@ -43,7 +43,7 @@ MODE='advantage' # 'value' , 'action' or 'advantage', if not 'value', parameter 
 ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
 CHOSENACTION=False # If this is true, ACTION will be updated each frame with the action that the agent chose last
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
-CONCURRENT = False # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
+CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
 METRIC="KL" # What value to compute from logits
@@ -56,6 +56,8 @@ if __name__ == "__main__":
     agent = Agent(environment)  # Create Agent
     agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
     agent.online_model.eval()
+
+
     with open(MODEL_PATH + str(LOAD_FILE_EPISODE) + '.json') as outfile:
         param = json.load(outfile)
         agent.epsilon = param.get('epsilon')
@@ -95,10 +97,10 @@ if __name__ == "__main__":
             if step > START_VIEW:
                 # plt.imshow(img)
                 # plt.show()
-                cv2.imshow("Frame-0 (Last Frame)", img[0])
-                cv2.imshow("Frame-1", img[1])
-                cv2.imshow("Frame-2", img[2])
-                cv2.imshow("Frame-3", img[3])
+                cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img[0], (400, 400)))
+                # cv2.imshow("Frame-1", img[1])
+                # cv2.imshow("Frame-2", img[2])
+                # cv2.imshow("Frame-3", img[3])
                 #cv2.imshow("Average Saliency", img[4])
                 cv2.waitKey(60)
 

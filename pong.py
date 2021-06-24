@@ -1,3 +1,5 @@
+import math
+
 import gym
 import cv2
 import matplotlib.pyplot as plt
@@ -334,15 +336,17 @@ class Agent:
         #cv2.imshow("imgs[0]", imgs[0])
         #cv2.waitKey(10)
         retimg=torch.zeros(imgs.shape) # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
-        ret=torch.zeros(4,shape[0]//size,shape[1]//size) # Tensor with one entry for each occlusion trial for the 4 frames. If concurrent=True, all 4 maps are identical.
-        for i in range(shape[0]//size):
-            for j in range(shape[1]//size):
+        for i in range(shape[0]):
+            for j in range(shape[1]):
                 box=np.zeros((4,shape[0],shape[1]))
-                littlebox=np.ones((size,size))*color
                 newstates=np.zeros(state.shape)
                 if concurrent:
                     for k in range(4):
-                        box[k,i*size:(i+1)*size,j*size:(j+1)*size]=littlebox
+                        x_left = max(math.floor(i - (size / 2)), 0)
+                        x_right = min(math.ceil(i + (size / 2)), shape[0])
+                        y_top = max(math.floor(j - (size / 2)), 0)
+                        y_bottom = min(math.ceil(j + (size / 2)), shape[1])
+                        box[k, x_left:x_right, y_top:y_bottom] = np.ones((x_right - x_left, y_bottom - y_top)) * color
                     states=np.copy(imgs)
                     states[box>0]=box[box>0] # Occlusion
                     newstates[0]=self.preProcess(states[0], singleChannel=True)
@@ -353,11 +357,14 @@ class Agent:
                     sal=self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
                     # RECORD SALIENCY
                     for k in range(4):
-                        ret[k,i,j]=sal
-                        retimg[k,i*size:(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
+                        retimg[k,i,j] = sal
                 else:
                     for k in range(4):
-                        box[k,i*size:(i+1)*size,j*size:(j+1)*size]=littlebox
+                        x_left = max(math.floor(i-(size/2)), 0)
+                        x_right = min(math.ceil(i+(size/2)), shape[0])
+                        y_top = max(math.floor(j-(size/2)), 0)
+                        y_bottom = min(math.ceil(j+(size/2)), shape[1])
+                        box[k, x_left:x_right, y_top:y_bottom] = np.ones((x_right - x_left, y_bottom - y_top)) * color
                         states=np.copy(imgs)
                         states[box>0]=box[box>0] # Occlusion
                         newstates[0] = self.preProcess(states[0], singleChannel=True)
@@ -367,8 +374,7 @@ class Agent:
                         # COMPUTE ACTIVATION DIFFERENCE
                         sal=self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
                         # RECORD SALIENCY
-                        ret[k,i,j]=sal
-                        retimg[k,i*size:(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
+                        retimg[k,i,j] = sal
                         box = np.zeros((4, shape[0], shape[1]))
                         #cv2.imshow("Orig-0", imgs[0])
                         #cv2.imshow("Orig-1", imgs[1])
@@ -717,9 +723,11 @@ class Agent:
         ataristate = self.postProcess(state[0])
         occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
         occmap = occmap.cpu()
-        occmap/=torch.max(occmap)
+        occmap /= torch.max(occmap)
+        occmap = occmap ** (1/7)
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
+
         # Add state to saliency maps in order to get gray game image
         # negsaliency += state[0]
         occlusion_maps=[]
