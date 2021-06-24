@@ -313,7 +313,46 @@ class Agent:
 
 
     # STRIDE IS NOT IMPLEMENTED. RIGHT NOW STRIDE=SIZE IS ASSUMED.
-    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=0.5, concurrent=False, metric="KL"):
+    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=None, concurrent=False, metric="KL", mask=True):
+        if color is None:
+            color = np.mean(state, axis=(0, 1, 2))
+        TOPMARGIN=0
+        BOTTOMMARGIN=0
+        if mask:
+            TOPMARGIN=6
+            BOTTOMMARGIN=7
+
+        TOTALMARGIN=TOPMARGIN+BOTTOMMARGIN
+        #img=torch.tensor(self.postProcess(state[0]),dtype=torch.float)
+        #cont=True
+        #while cont:
+        #    mask=torch.zeros(size=img.shape)
+        #    mask[0:TOPMARGIN,:]=torch.ones(size=(TOPMARGIN,img.shape[1]))
+        #    mask[-BOTTOMMARGIN:,:]=torch.ones(size=(BOTTOMMARGIN,img.shape[1]))
+        #    im=torch.cat([mask.unsqueeze(0),torch.zeros(size=mask.size()).unsqueeze(0),img.unsqueeze(0)],dim=0).transpose(0, 2).transpose(0, 1).numpy()
+        #    cv2.imshow("a",im)
+        #    cv2.imshow("orig", img.numpy())
+        #    key=cv2.waitKey()
+        #    print(key)
+        #    if key==113:
+        #        cont=False
+        #    elif key==56:
+        #        if TOPMARGIN<img.numpy().shape[0]-1:
+        #            TOPMARGIN+=1
+        #        print("TOP :"+str(TOPMARGIN))
+        #    elif key == 54:
+        #        if BOTTOMMARGIN<img.numpy().shape[0]-1:
+        #            BOTTOMMARGIN += 1
+        #        print("BOT :" + str(BOTTOMMARGIN))
+        #    elif key==50:
+        #        if TOPMARGIN>0:
+        #            TOPMARGIN-=1
+        #        print("TOP :"+str(TOPMARGIN))
+        #    elif key == 52:
+        #        if BOTTOMMARGIN>0:
+        #            BOTTOMMARGIN -= 1
+        #        print("BOT :" + str(BOTTOMMARGIN))
+
         postProcessedShape=self.postProcess(state[0]).shape
         imgs=np.zeros((4, postProcessedShape[0], postProcessedShape[1]))
         imgs[0]=self.postProcess(state[0])
@@ -334,18 +373,17 @@ class Agent:
         #cv2.waitKey(10)
         retimg=torch.zeros(imgs.shape) # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
         ret=torch.zeros(4,postProcessedShape[0]//size,postProcessedShape[1]//size) # Tensor with one entry for each occlusion trial for the 4 frames. If concurrent=True, all 4 maps are identical.
-        for i in range(postProcessedShape[0]//size):
+
+        for i in range((postProcessedShape[0]-TOTALMARGIN)//size):
             for j in range(postProcessedShape[1]//size):
                 box=np.zeros((4,postProcessedShape[0],postProcessedShape[1])) # Has dimension 4x64x80
                 littlebox=np.ones((size,size))*color
                 occludedStates=np.zeros(state.shape)# Has dims 4x80x64
                 if concurrent:
                     for k in range(4):
-                        box[k,i*size:(i+1)*size,j*size:(j+1)*size]=littlebox
+                        box[k,TOPMARGIN+i*size:TOPMARGIN+(i+1)*size,j*size:(j+1)*size]=littlebox
                     occludedImage=np.copy(imgs)
                     occludedImage[box>0]=box[box>0] # Occlusion
-                    cv2.imshow("occludedImage",occludedImage[0])
-                    #cv2.waitKey()
                     occludedStates[0]=self.preProcess(occludedImage[0], singleChannel=True)
                     occludedStates[1]=self.preProcess(occludedImage[1], singleChannel=True)
                     occludedStates[2]=self.preProcess(occludedImage[2], singleChannel=True)
@@ -355,12 +393,13 @@ class Agent:
                     # RECORD SALIENCY
                     for k in range(4):
                         ret[k,i,j]=sal
-                        retimg[k,i*size:(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
-                    cv2.imshow("retimg",retimg[0].numpy())
-                    #cv2.waitKey()
+                        retimg[k,TOPMARGIN+i*size:TOPMARGIN+(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
+                    # cv2.imshow("occludedImage",occludedImage[0])
+                    # cv2.imshow("retimg",retimg[0].numpy())
+                    # cv2.waitKey()
                 else:
                     for k in range(4):
-                        box[k,i*size:(i+1)*size,j*size:(j+1)*size]=littlebox
+                        box[k,TOPMARGIN+i*size:TOPMARGIN+(i+1)*size,j*size:(j+1)*size]=littlebox
                         occludedImage=np.copy(imgs)
                         occludedImage[box>0]=box[box>0] # Occlusion
                         occludedStates[0] = self.preProcess(occludedImage[0], singleChannel=True)
@@ -371,18 +410,18 @@ class Agent:
                         sal=self.computeActivationDifference(state, occludedStates, mode=mode, action=action, metric=metric)
                         # RECORD SALIENCY
                         ret[k,i,j]=sal
-                        retimg[k,i*size:(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
+                        retimg[k,TOPMARGIN+i*size:TOPMARGIN+(i+1)*size,j*size:(j+1)*size]=torch.ones(size,size)*sal
                         box = np.zeros((4, postProcessedShape[0], postProcessedShape[1]))
-                        #cv2.imshow("Orig-0", imgs[0])
-                        #cv2.imshow("Orig-1", imgs[1])
-                        #cv2.imshow("Orig-2", imgs[2])
-                        #cv2.imshow("Orig-3", imgs[3])
+                        # cv2.imshow("Orig-0", imgs[0])
+                        # cv2.imshow("Orig-1", imgs[1])
+                        # cv2.imshow("Orig-2", imgs[2])
+                        # cv2.imshow("Orig-3", imgs[3])
 
-                        #cv2.imshow("Occluded-0", states[0])
-                        #cv2.imshow("Occluded-1", states[1])
-                        #cv2.imshow("Occluded-2", states[2])
-                        #cv2.imshow("Occluded-3", states[3])
-                        #cv2.waitKey()
+                        # cv2.imshow("Occluded-0", occludedImage[0])
+                        # cv2.imshow("Occluded-1", occludedImage[1])
+                        # cv2.imshow("Occluded-2", occludedImage[2])
+                        # cv2.imshow("Occluded-3", occludedImage[3])
+                        # cv2.waitKey()
         return retimg
 
 
@@ -715,12 +754,13 @@ class Agent:
         return img
 
     def getBoxOcclusionImage(self, state, atariimg, mode='value', action=None, threshold=0.0, size=3,
-                                   stride=3, color=0.5,concurrent=False, metric="KL"):
+                                   stride=3, color=None,concurrent=False, metric="KL", mask=True):
 
         ataristate = self.postProcess(state[0])
-        occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
+        occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric, mask=mask)
         occmap = occmap.cpu()
         occmap/=torch.max(occmap)
+        occmap=occmap**(1/7)
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
         # Add state to saliency maps in order to get gray game image

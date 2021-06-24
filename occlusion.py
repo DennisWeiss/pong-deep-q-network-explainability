@@ -43,13 +43,14 @@ MODE='advantage' # 'value' , 'action' or 'advantage', if not 'value', parameter 
 ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
 CHOSENACTION=False # If this is true, ACTION will be updated each frame with the action that the agent chose last
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
-CONCURRENT = False # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
+CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
-METRIC="KL" # What value to compute from logits
-SIZE=8
+METRIC="KL" # What value to compute from logits. Currently KL, JS or Norm
+SIZE=1
 STRIDE=3
-COLOR= 0.25098039215686274 # Grayscale value between 0 and 1 for the occlusion box color
+MASK=True # If True, only occlusion map for play area is computed
+COLOR = None#0.251#0.25098039215686274 # Grayscale value between 0 and 1 for the occlusion box color
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
@@ -90,16 +91,20 @@ if __name__ == "__main__":
                 img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
             elif METHOD=="Box":
                 if step>START_VIEW:
-                    img=agent.getBoxOcclusionImage(state, atariimg, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
+                    img=agent.getBoxOcclusionImage(state, atariimg, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC, mask=MASK)
 
             if step > START_VIEW:
                 # plt.imshow(img)
                 # plt.show()
-                cv2.imshow("Frame-0 (Last Frame)", img[0])
-                cv2.imshow("Frame-1", img[1])
-                cv2.imshow("Frame-2", img[2])
-                cv2.imshow("Frame-3", img[3])
-                #cv2.imshow("Average Saliency", img[4])
+                if not CONCURRENT:
+                    cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img[0], (172, 240)))
+                    cv2.imshow("Frame-1", cv2.resize(img[1], (172, 240)))
+                    cv2.imshow("Frame-2", cv2.resize(img[2], (172, 240)))
+                    cv2.imshow("Frame-3", cv2.resize(img[3], (172, 240)))
+                    #cv2.imshow("Average Saliency", img[4])
+                else:
+                    cv2.imshow("Frame", img[0])
+                    cv2.imshow("Frame 172*240", cv2.resize(img[0], (172, 240)))
                 cv2.waitKey(60)
 
             next_state, reward, done, info = environment.step(action)  # Observe
