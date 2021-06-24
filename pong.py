@@ -706,11 +706,16 @@ class Agent:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         return img
 
-    def getBoxOcclusionImage(self, state, atariimg, mode='value', action=None, threshold=0.0, size=3,
-                                   stride=3, color=None,concurrent=False, metric="KL"):
+    def getOcclusionImage(self, state, atariimg, method="Box", mode='value', action=None, threshold=0.0, size=3,
+                          stride=3, color=None, concurrent=False, metric="KL"):
 
         ataristate = self.postProcess(state[0])
-        occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
+
+        if method == "Box":
+            occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
+        else:
+            raise ValueError("Invalid method!")
+
         occmap = occmap.cpu()
         occmap /= torch.max(occmap)
         occmap = occmap ** (1/2)

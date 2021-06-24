@@ -90,9 +90,9 @@ if __name__ == "__main__":
                 img2=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,type=TYPE)
                 img3=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,type=TYPE)
                 img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
-            elif METHOD=="Box":
+            elif METHOD=="Box" or METHOD=="Gaussian-Blur":
                 if step>START_VIEW:
-                    img=agent.getBoxOcclusionImage(state, atariimg, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
+                    img=agent.getOcclusionImage(state, atariimg, method=METHOD, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
 
             if step > START_VIEW:
                 # plt.imshow(img)
