@@ -285,7 +285,7 @@ class Agent:
 
     def computeActivationDifference(self, state, occluded, mode='value', action=None, metric="KL"):
         if mode != 'value':
-            if mode != 'advantage' and mode!= 'action':
+            if mode != 'advantage' and mode != 'action':
                 raise ValueError("mode needs to be 'value', 'action' or 'advantage'!")
             else:
                 if action == None or action < -1:
@@ -314,16 +314,17 @@ class Agent:
         if metric=="Norm":
             return torch.linalg.norm(diff)
 
-
     # STRIDE IS NOT IMPLEMENTED. RIGHT NOW STRIDE=SIZE IS ASSUMED.
-    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=0.5, concurrent=False, metric="KL"):
+    def getBoxOcclusion(self, state, mode='value', action=None, size=3, stride=3, color=None, concurrent=False, metric="KL"):
+        if color is None:
+            color = np.mean(state, axis=(0, 1, 2))
         shape=self.postProcess(state[0]).shape
         imgs=np.zeros((4, shape[0], shape[1]))
         imgs[0]=self.postProcess(state[0])
         imgs[1]=self.postProcess(state[1])
         imgs[2]=self.postProcess(state[2])
         imgs[3]=self.postProcess(state[3])
-        #print(imgs[0])
+
         if not (self.preProcess(imgs[0], singleChannel=True)==state[0]).all():
             raise ValueError("Something went wrong")
         if not (self.preProcess(imgs[1], singleChannel=True)==state[1]).all():
@@ -333,8 +334,6 @@ class Agent:
         if not (self.preProcess(imgs[3], singleChannel=True)==state[3]).all():
             raise ValueError("Something went wrong")
 
-        #cv2.imshow("imgs[0]", imgs[0])
-        #cv2.waitKey(10)
         retimg=torch.zeros(imgs.shape) # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
         for i in range(shape[0]):
             for j in range(shape[1]):
@@ -376,16 +375,6 @@ class Agent:
                         # RECORD SALIENCY
                         retimg[k,i,j] = sal
                         box = np.zeros((4, shape[0], shape[1]))
-                        #cv2.imshow("Orig-0", imgs[0])
-                        #cv2.imshow("Orig-1", imgs[1])
-                        #cv2.imshow("Orig-2", imgs[2])
-                        #cv2.imshow("Orig-3", imgs[3])
-
-                        #cv2.imshow("Occluded-0", states[0])
-                        #cv2.imshow("Occluded-1", states[1])
-                        #cv2.imshow("Occluded-2", states[2])
-                        #cv2.imshow("Occluded-3", states[3])
-                        #cv2.waitKey()
         return retimg
 
 
@@ -718,13 +707,13 @@ class Agent:
         return img
 
     def getBoxOcclusionImage(self, state, atariimg, mode='value', action=None, threshold=0.0, size=3,
-                                   stride=3, color=0.5,concurrent=False, metric="KL"):
+                                   stride=3, color=None,concurrent=False, metric="KL"):
 
         ataristate = self.postProcess(state[0])
         occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
         occmap = occmap.cpu()
         occmap /= torch.max(occmap)
-        occmap = occmap ** (1/7)
+        occmap = occmap ** (1/2)
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
 

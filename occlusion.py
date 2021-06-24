@@ -37,7 +37,7 @@ RENDER_CV_WINDOW = True
 
 # Occlusion HYPERPARAMETERS
 THRESHOLD=0.0
-MODE='advantage' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
+MODE='action' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
 # 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
 # The MODE determines what values will be used to compute the occlusion maps
 ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
@@ -46,10 +46,10 @@ TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CA
 CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
 METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
-METRIC="KL" # What value to compute from logits
+METRIC="Norm" # What value to compute from logits
 SIZE=8
 STRIDE=3
-COLOR= 0.25098039215686274 # Grayscale value between 0 and 1 for the occlusion box color
+COLOR= None # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
