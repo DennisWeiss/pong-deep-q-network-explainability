@@ -341,9 +341,9 @@ class Agent:
                 newstates=np.zeros(state.shape)
                 if concurrent:
                     for k in range(4):
-                        x_left = max(math.floor(i - (size / 2)), 0)
+                        x_left = max(math.ceil(i - (size / 2)), 0)
                         x_right = min(math.ceil(i + (size / 2)), shape[0])
-                        y_top = max(math.floor(j - (size / 2)), 0)
+                        y_top = max(math.ceil(j - (size / 2)), 0)
                         y_bottom = min(math.ceil(j + (size / 2)), shape[1])
                         box[k, x_left:x_right, y_top:y_bottom] = np.ones((x_right - x_left, y_bottom - y_top)) * color
                     states=np.copy(imgs)
@@ -375,6 +375,76 @@ class Agent:
                         # RECORD SALIENCY
                         retimg[k,i,j] = sal
                         box = np.zeros((4, shape[0], shape[1]))
+
+        print(retimg.size())
+        return retimg
+
+    def getGaussianBlurOcclusion(self, state, mode='value', action=None, size=2.0, concurrent=False, metric="KL"):
+        def gaussianBlurredState(state, size):
+            blurred = np.copy(state)
+            for k in range(1):
+                for i in range(state.shape[1]):
+                    for j in range(state.shape[2]):
+                        weighted_sum = 0
+                        normalizer = 0
+                        for x in range(max(math.ceil(i-2*size), 0), min(math.ceil(i+2*size), state.shape[1])):
+                            for y in range(max(math.ceil(j-2*size), 0), min(math.ceil(j+2*size), state.shape[2])):
+                                factor = round(np.exp(-1/(2*size) * ((i-x) ** 2 + (j-y) ** 2)), 4)
+                                weighted_sum += factor * state[k, x, y]
+                                normalizer += factor
+                        blurred[k, i, j] = weighted_sum / normalizer
+                        if i == 30 and j == 30:
+                            print(blurred[k, i, j] - state[k, i, j])
+                        if blurred[k, i, j] == state[k, i, j]:
+                            print('same blurred: {}, {}, {}'.format(k, i, j))
+            return blurred
+
+        shape = self.postProcess(state[0]).shape
+        imgs = np.zeros((4, shape[0], shape[1]))
+        imgs[0] = self.postProcess(state[0])
+        imgs[1] = self.postProcess(state[1])
+        imgs[2] = self.postProcess(state[2])
+        imgs[3] = self.postProcess(state[3])
+
+        if not (self.preProcess(imgs[0], singleChannel=True) == state[0]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[1], singleChannel=True) == state[1]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[2], singleChannel=True) == state[2]).all():
+            raise ValueError("Something went wrong")
+        if not (self.preProcess(imgs[3], singleChannel=True) == state[3]).all():
+            raise ValueError("Something went wrong")
+
+        retimg = torch.zeros(imgs.shape)  # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
+
+        blurred_states = gaussianBlurredState(imgs, size)
+
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                newimgs = np.copy(imgs)
+                if concurrent:
+                    for k in range(4):
+                        for x in range(max(math.ceil(i-2*size), 0), min(math.ceil(i+2*size), imgs.shape[1])):
+                            for y in range(max(math.ceil(j-2*size), 0), min(math.ceil(j+2*size), imgs.shape[2])):
+                                factor = np.exp(-1 / (2 * size) * ((i - x) ** 2 + (j - y) ** 2))
+                                newimgs[k, x, y] = factor * blurred_states[k, x, y] + (1 - factor) * imgs[k, x, y]
+                                if i == 30 and j == 30:
+                                    if newimgs[k, x, y] == imgs[k, x, y]:
+                                        print('same {}, {}, {}'.format(k, x, y))
+
+                    newstates = np.zeros(state.shape)
+                    newstates[0] = self.preProcess(newimgs[0], singleChannel=True)
+                    newstates[1] = self.preProcess(newimgs[1], singleChannel=True)
+                    newstates[2] = self.preProcess(newimgs[2], singleChannel=True)
+                    newstates[3] = self.preProcess(newimgs[3], singleChannel=True)
+
+                    # COMPUTE ACTIVATION DIFFERENCE
+                    sal = self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
+                    # print(i, j, sal)
+                    # RECORD SALIENCY
+                    for k in range(4):
+                        retimg[k, i, j] = sal
+
         return retimg
 
 
@@ -712,15 +782,22 @@ class Agent:
         ataristate = self.postProcess(state[0])
 
         if method == "Box":
-            occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color,concurrent=concurrent, metric=metric)
+            occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, stride=stride, color=color, concurrent=concurrent, metric=metric)
+        elif method == "Gaussian-Blur":
+            occmap = self.getGaussianBlurOcclusion(state, mode=mode, action=action, size=size, concurrent=concurrent, metric=metric)
         else:
             raise ValueError("Invalid method!")
 
         occmap = occmap.cpu()
-        occmap /= torch.max(occmap)
-        occmap = occmap ** (1/2)
+        occmap /= torch.max(occmap[0])
+        if method == "Gaussian-Blur":
+            occmap = occmap ** (1/2)
+        elif method == "Box":
+            occmap = occmap ** (1/5)
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
+            
+        print(occmap[0])
 
         # Add state to saliency maps in order to get gray game image
         # negsaliency += state[0]

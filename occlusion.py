@@ -45,11 +45,11 @@ CHOSENACTION=False # If this is true, ACTION will be updated each frame with the
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
 CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
-METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
+METHOD="Gaussian-Blur" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
 METRIC="Norm" # What value to compute from logits
-SIZE=8
+SIZE=2.0
 STRIDE=3
-COLOR= None # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
+COLOR=None # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
