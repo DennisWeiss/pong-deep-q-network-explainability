@@ -45,11 +45,11 @@ CHOSENACTION=False # If this is true, ACTION will be updated each frame with the
 TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
 CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
 LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
-METHOD="Gaussian-Blur" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
+METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
 METRIC="Norm" # What value to compute from logits
 SIZE=2.0
 STRIDE=3
-COLOR=None # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
+COLOR=0.28#233.0/3.0 # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
@@ -98,11 +98,12 @@ if __name__ == "__main__":
                 # plt.imshow(img)
                 # plt.show()
                 cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img[0], (400, 400)))
+                cv2.imshow("atari image", atariimg)
                 # cv2.imshow("Frame-1", img[1])
                 # cv2.imshow("Frame-2", img[2])
                 # cv2.imshow("Frame-3", img[3])
                 #cv2.imshow("Average Saliency", img[4])
-                cv2.waitKey(60)
+                cv2.waitKey()
 
             next_state, reward, done, info = environment.step(action)  # Observe
             atariimg = next_state

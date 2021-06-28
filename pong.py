@@ -29,6 +29,7 @@ SAVE_MODELS = False  # Save models to file so you can test later
 MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
 SAVE_MODEL_INTERVAL = 10  # Save models at every X epoch
 TRAIN_MODEL = False  # Train model while playing (Make it False when testing a model)
+MINVALUE=0.1
 
 LOAD_MODEL_FROM_FILE = True  # Load model from file
 LOAD_FILE_EPISODE = 900  # Load Xth episode from file
@@ -791,9 +792,11 @@ class Agent:
         occmap = occmap.cpu()
         occmap /= torch.max(occmap[0])
         if method == "Gaussian-Blur":
-            occmap = occmap ** (1/2)
+            #occmap = occmap ** (1/2)
+            occmap=(1-MINVALUE)*occmap+MINVALUE
         elif method == "Box":
-            occmap = occmap ** (1/5)
+            #occmap = occmap ** (1/5)
+            occmap=(1-MINVALUE)*occmap+MINVALUE
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
             
