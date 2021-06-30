@@ -205,6 +205,8 @@ class DuelCNN(nn.Module):
         AbsSaliency = torch.abs(saliency.clone())
         saliency = saliency / torch.max(AbsSaliency)
         return saliency
+
+
 class Agent:
     def __init__(self, environment):
         """
@@ -464,10 +466,6 @@ class Agent:
                                 weighted_sum += factor * state[k, x, y]
                                 normalizer += factor
                         blurred[k, i, j] = weighted_sum / normalizer
-                        #if i == 30 and j == 30:
-                        #    print(blurred[k, i, j] - state[k, i, j])
-                        #if blurred[k, i, j] == state[k, i, j]:
-                        #    print('same blurred: {}, {}, {}'.format(k, i, j))
             return blurred
 
         shape = self.postProcess(state[0]).shape
@@ -498,9 +496,6 @@ class Agent:
                         for y in range(max(math.ceil(j-2*size), 0), min(math.ceil(j+2*size), imgs.shape[2])):
                             factor = np.exp(-1 / (2 * size) * ((i - x) ** 2 + (j - y) ** 2))
                             newimgs[k, x, y] = factor * blurred_states[k, x, y] + (1 - factor) * imgs[k, x, y]
-                            #if i == 30 and j == 30:
-                                #if newimgs[k, x, y] == imgs[k, x, y]:
-                                #    print('same {}, {}, {}'.format(k, x, y))
                 newstates = np.zeros(state.shape)
                 newstates[0] = self.preProcess(newimgs[0], onlyReshape=True)
                 newstates[1] = self.preProcess(newimgs[1], onlyReshape=True)
