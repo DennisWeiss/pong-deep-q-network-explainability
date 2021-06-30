@@ -30,31 +30,24 @@ MAX_STEP = 100000  # Max step size for one episode
 
 START_VIEW = 50
 
-EPSILON = 0.0  # Epsilon
-
-RENDER_GYM_WINDOW = False  # Opens a new window to render the game (Won't work on colab default)
-RENDER_CV_WINDOW = True
-
-# Occlusion HYPERPARAMETERS
+# OCCLUSIONB HYPERPARAMETERS
 THRESHOLD=0.0
-MODE='action' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
+MODE='value' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
 # 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
 # The MODE determines what values will be used to compute the occlusion maps
 ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
 CHOSENACTION=False # If this is true, ACTION will be updated each frame with the action that the agent chose last
-TYPE='PosNeg' # Currently 'Positive', 'Negative', 'PosNeg' or 'Absolute' THIS CAN ACTUALLY ONLY BE ABSOLUTE, NOT CHANGING CODE RIGHT NOW
-CONCURRENT = True # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
-LAG=0 # WHICH FRAME YOU WANT TO GET SALIENCY FOR. 0 for most recent frame, -1 for average.
-METHOD="Box" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
+CONCURRENT = False # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
+METHOD="Gaussian-Blur" # Currently "Box" or "Gaussian-Blur". If "Box" parameters Size, Stride and Color must be set
 METRIC="Norm" # What value to compute from logits
 SIZE=2.0
-STRIDE=3
 COLOR=0.28#233.0/3.0 # Grayscale value between 0 and 1 for the occlusion box color, if set to None, the average pixel value of the image will be used
 
 if __name__ == "__main__":
     environment = gym.make(ENVIRONMENT)  # Get env
     agent = Agent(environment)  # Create Agent
     agent.online_model.load_state_dict(torch.load(MODEL_PATH + str(LOAD_FILE_EPISODE) + ".pkl", map_location="cpu"))
+    #Put agent to evaluation mode (fix batch normalisation layer)
     agent.online_model.eval()
 
 
@@ -78,25 +71,12 @@ if __name__ == "__main__":
                 ACTION=action
             environment.render()
             ataristate = agent.postProcess(state[0])
-            if METHOD=="SaliencyMap":
-                img0=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
-                img1=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,type=TYPE)
-                img2=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,type=TYPE)
-                img3=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,type=TYPE)
-                img4=agent.getSaliencyMapImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
-            elif METHOD=="GuidedBP":
-                img0=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=0,type=TYPE)
-                img1=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=1,type=TYPE)
-                img2=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=2,type=TYPE)
-                img3=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=3,type=TYPE)
-                img4=agent.getGuidedBPImage(state,atariimg,mode=MODE,action=ACTION,threshold=THRESHOLD,lag=-1,type=TYPE)
-            elif METHOD=="Box" or METHOD=="Gaussian-Blur":
+            if METHOD=="Box" or METHOD=="Gaussian-Blur":
                 if step>START_VIEW:
-                    img=agent.getOcclusionImage(state, atariimg, method=METHOD, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, stride=STRIDE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
-
+                    img=agent.getOcclusionImage(state, method=METHOD, mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, color=COLOR, concurrent=CONCURRENT, metric=METRIC)
+            else:
+                raise ValueError("Invalid METHOD")
             if step > START_VIEW:
-                # plt.imshow(img)
-                # plt.show()
                 cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img[0], (400, 400)))
                 cv2.imshow("atari image", atariimg)
                 # cv2.imshow("Frame-1", img[1])

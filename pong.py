@@ -16,14 +16,16 @@ import torch.nn.functional as F
 
 from collections import deque
 
+DEVICE = "cpu"  # torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # p and q are vectors of positive probabilities, summing to 1
 # Returns KL Divergence of the distributions
 def KLDivergence(p,q):
     return torch.dot(p,(torch.log(p)-torch.log(q)))
-"""
+
+    """
 ENVIRONMENT = "PongDeterministic-v4"
 
-DEVICE = "cpu"#torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SAVE_MODELS = False  # Save models to file so you can test later
 MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
@@ -226,17 +228,17 @@ class Agent:
                          self.state_size_w]  # Cut 20 px from top to get rid of the score table
 
         # Trust rate to our experiences
-        self.gamma = GAMMA  # Discount coef for future predictions
-        self.alpha = ALPHA  # Learning Rate
+        #self.gamma = GAMMA  # Discount coef for future predictions
+        #self.alpha = ALPHA  # Learning Rate
 
         # After many experinces epsilon will be 0.05
         # So we will do less Explore more Exploit
         self.epsilon = 1  # Explore or Exploit
-        self.epsilon_decay = EPSILON_DECAY  # Adaptive Epsilon Decay Rate
+#        self.epsilon_decay = EPSILON_DECAY  # Adaptive Epsilon Decay Rate
         self.epsilon_minimum = 0.05  # Minimum for Explore
 
         # Deque holds replay mem.
-        self.memory = deque(maxlen=MAX_MEMORY_LEN)
+ #       self.memory = deque(maxlen=MAX_MEMORY_LEN)
 
         # Create two model for DDQN algorithm
         self.online_model = DuelCNN(h=self.target_h, w=self.target_w, output_size=self.action_size).to(DEVICE)
@@ -245,7 +247,7 @@ class Agent:
         self.target_model.eval()
 
         # Adam used as optimizer
-        self.optimizer = optim.Adam(self.online_model.parameters(), lr=self.alpha)
+        #self.optimizer = optim.Adam(self.online_model.parameters(), lr=self.alpha)
 
     # When we apply methods to get maps on the pixels in the order the agent takes them,
     # We need to transpose it to normal size, this is done by Agent.postProcess
@@ -462,10 +464,10 @@ class Agent:
                                 weighted_sum += factor * state[k, x, y]
                                 normalizer += factor
                         blurred[k, i, j] = weighted_sum / normalizer
-                        if i == 30 and j == 30:
-                            print(blurred[k, i, j] - state[k, i, j])
-                        if blurred[k, i, j] == state[k, i, j]:
-                            print('same blurred: {}, {}, {}'.format(k, i, j))
+                        #if i == 30 and j == 30:
+                        #    print(blurred[k, i, j] - state[k, i, j])
+                        #if blurred[k, i, j] == state[k, i, j]:
+                        #    print('same blurred: {}, {}, {}'.format(k, i, j))
             return blurred
 
         shape = self.postProcess(state[0]).shape
@@ -496,9 +498,9 @@ class Agent:
                         for y in range(max(math.ceil(j-2*size), 0), min(math.ceil(j+2*size), imgs.shape[2])):
                             factor = np.exp(-1 / (2 * size) * ((i - x) ** 2 + (j - y) ** 2))
                             newimgs[k, x, y] = factor * blurred_states[k, x, y] + (1 - factor) * imgs[k, x, y]
-                            if i == 30 and j == 30:
-                                if newimgs[k, x, y] == imgs[k, x, y]:
-                                    print('same {}, {}, {}'.format(k, x, y))
+                            #if i == 30 and j == 30:
+                                #if newimgs[k, x, y] == imgs[k, x, y]:
+                                #    print('same {}, {}, {}'.format(k, x, y))
                 newstates = np.zeros(state.shape)
                 newstates[0] = self.preProcess(newimgs[0], onlyReshape=True)
                 newstates[1] = self.preProcess(newimgs[1], onlyReshape=True)
