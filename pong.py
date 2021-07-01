@@ -326,7 +326,7 @@ class Agent:
 
         if method == "Box":
             occmap = self.getBoxOcclusion(state, mode=mode, action=action, size=size, color=color,
-                                          concurrent=concurrent, metric=metric)
+                                          concurrent=concurrent, metric=metric)[0]
         elif method == "Gaussian-Blur":
             occmap = self.getGaussianBlurOcclusion(state, mode=mode, action=action, size=size, concurrent=concurrent,
                                                    metric=metric)
@@ -334,7 +334,7 @@ class Agent:
             raise ValueError("Invalid method!")
 
         occmap = occmap.cpu()
-        occmap /= torch.max(occmap[0])
+        occmap /= torch.max(occmap)
         # In these ifs, we can rescale the values with taking roots
         # or linear interpolation between a hyperparameter MINVALUE and 1
         # Doesn't change qualitatively
@@ -347,14 +347,11 @@ class Agent:
         if threshold > 0.0:
             occmap = F.threshold(occmap, threshold, 0.0)
 
-        occlusion_maps = []
-        for i in range(4):
-            map = torch.cat([occmap[i].detach().clone().unsqueeze(0),
-                             occmap[i].detach().clone().unsqueeze(0),
+        occlusion_map = torch.cat([occmap.detach().clone().unsqueeze(0),
+                             occmap.detach().clone().unsqueeze(0),
                              torch.tensor(ataristate, dtype=torch.float).unsqueeze(0)])
-            map = map.transpose(0, 2).transpose(0, 1).numpy()
-            occlusion_maps.append(cv2.cvtColor(map, cv2.COLOR_RGB2BGR))
-        return occlusion_maps
+        occlusion_map = occlusion_map.transpose(0, 2).transpose(0, 1).numpy()
+        return cv2.cvtColor(occlusion_map, cv2.COLOR_RGB2BGR)
 
 
     def computeActivationDifference(self, state, occluded, mode='value', action=None, metric="KL"):
@@ -386,7 +383,7 @@ class Agent:
             r=(p+q)/2.0
             return 0.5*(KLDivergence(p,r)+KLDivergence(q,r))
         if metric=="Norm":
-            return torch.linalg.norm(diff)
+            return torch.norm(diff)
 
     def getBoxOcclusion(self, state, mode='value', action=None, size=3, color=None, concurrent=False, metric="KL"):
         if color is None:
@@ -484,12 +481,13 @@ class Agent:
         if not (self.preProcess(imgs[3], onlyReshape=True) == state[3]).all():
             raise ValueError("Something went wrong")
 
-        retimg = torch.zeros(imgs.shape)  # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
+        retimg = torch.zeros((imgs.shape[1], imgs.shape[2]))  # Tensor the same shape as 4 frames of grayscale inputs.  If concurrent=True, all 4 maps are identical.
 
         blurred_states = gaussianBlurredState(imgs, size)
 
-        for i in range(shape[0]):
-            for j in range(shape[1]):
+        for i in np.arange(0, shape[0], 4):
+            print(i)
+            for j in np.arange(0, shape[1], 4):
                 newimgs = np.copy(imgs)
                 for k in range(4):
                     for x in range(max(math.ceil(i-2*size), 0), min(math.ceil(i+2*size), imgs.shape[1])):
@@ -506,8 +504,18 @@ class Agent:
                 sal = self.computeActivationDifference(state, newstates, mode=mode, action=action, metric=metric)
                 # print(i, j, sal)
                 # RECORD SALIENCY
-                for k in range(4):
-                    retimg[k, i, j] = sal
+                retimg[i, j] = sal
+
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                if i % 4 != 0 or j % 4 != 0:
+                    x0 = i - (i % 4)
+                    x1 = min(x0 + 4, shape[0] - 1)
+                    y0 = j - (j % 4)
+                    y1 = min(y0 + 4, shape[1] - 1)
+
+                    retimg[i, j] = (y1-j)/4 * (x1-i)/4 * retimg[x0,y0] + (y1-j)/4 * (i-x0)/4 * retimg[x1,y0] + (j-y0)/4 * (x1-i)/4 * retimg[x0,y1] + (j-y0)/4 * (i-x0)/4 * retimg[x1, y1]
+
         return retimg
 
     # REST OF THE FUNCTIONS ARE RELATED EITHER TO TRAINING OR GRADIENT BASED METHODS

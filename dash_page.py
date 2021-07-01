@@ -1,5 +1,6 @@
 import base64
 
+import cv2
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -36,21 +37,39 @@ ALPHA = 0.00025  # Learning rate
 EPSILON_DECAY = 0.99  # Epsilon decay rate by step
 RENDER_GAME_WINDOW = True  # Opens a new window to render the game (Won't work on colab default)
 
+# OCCLUSIONB HYPERPARAMETERS
+THRESHOLD=0.0
+MODE='value' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
+# 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
+# The MODE determines what values will be used to compute the occlusion maps
+ACTION=-1 # set -1 if you want saliency map for the whole action advantage vector/whole output vector of the network
+CHOSENACTION=False # If this is true, ACTION will be updated each frame with the action that the agent chose last
+CONCURRENT = False # If true, all regions are occluded at the same time in the 4 frames. If false, seperate maps for each frame is generated.
+METRIC="Norm" # What value to compute from logits
+SIZE=2.0
+
 app = dash.Dash()
 
 app.layout = html.Div(children=[
     html.Div(children=[
         html.Img(
             id='game-screen'
+        ),
+    ],
+        style={'width': '50%', 'display': 'inline-block', 'text-align': 'center'}),
+    html.Div(children=[
+        html.Img(
+            id='saliency-map'
         )
-    ]),
+    ],
+        style={'width': '50%', 'display': 'inline-block', 'text-align': 'center'}),
     html.Img(
         id='action-tree',
         width=1800,
     ),
     dcc.Interval(
         id='interval-component',
-        interval=2000,
+        interval=4000,
         n_intervals=0
     )
 ])
@@ -162,6 +181,7 @@ total_loss = 0  # Total loss for each episode
 
 @app.callback([
     Output('game-screen', 'src'),
+    Output('saliency-map', 'src'),
     Output('action-tree', 'src')
 ],
     Input('interval-component', 'n_intervals'))
@@ -227,7 +247,12 @@ def take_step(n):
     environment.ale.saveScreenPNG('game_screen.png')
     encoded_game_screen = base64.b64encode(open('game_screen.png', 'rb').read())
 
-    return 'data:image/png;base64,{}'.format(encoded_game_screen.decode()), 'data:image/png;base64,{}'.format(encoded_action_tree.decode())
+    occlusion_img = agent.getOcclusionImage(state, method='Gaussian-Blur', mode=MODE, action=ACTION, threshold=THRESHOLD, size=SIZE, color=None, concurrent=CONCURRENT, metric=METRIC)
+    cv2.imwrite('saliency_map.png', cv2.resize(255 * occlusion_img, (340, 240)))
+    encoded_saliency_map = base64.b64encode(open('saliency_map.png', 'rb').read())
+
+    return 'data:image/png;base64,{}'.format(encoded_game_screen.decode()), 'data:image/png;base64,{}'.format(encoded_saliency_map.decode()),'data:image/png;base64,{}'.format(
+        encoded_action_tree.decode())
 
 
 app.run_server(debug=True)

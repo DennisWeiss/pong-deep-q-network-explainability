@@ -30,7 +30,7 @@ MAX_STEP = 100000  # Max step size for one episode
 
 START_VIEW = 50
 
-# OCCLUSIONB HYPERPARAMETERS
+# OCCLUSION HYPERPARAMETERS
 THRESHOLD=0.0
 MODE='value' # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
 # 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
@@ -77,12 +77,8 @@ if __name__ == "__main__":
             else:
                 raise ValueError("Invalid METHOD")
             if step > START_VIEW:
-                cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img[0], (400, 400)))
+                cv2.imshow("Frame-0 (Last Frame)", cv2.resize(img, (400, 400)))
                 cv2.imshow("atari image", atariimg)
-                # cv2.imshow("Frame-1", img[1])
-                # cv2.imshow("Frame-2", img[2])
-                # cv2.imshow("Frame-3", img[3])
-                #cv2.imshow("Average Saliency", img[4])
                 cv2.waitKey()
 
             next_state, reward, done, info = environment.step(action)  # Observe
