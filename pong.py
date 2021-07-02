@@ -486,7 +486,6 @@ class Agent:
         blurred_states = gaussianBlurredState(imgs, size)
 
         for i in np.arange(0, shape[0], 4):
-            print(i)
             for j in np.arange(0, shape[1], 4):
                 newimgs = np.copy(imgs)
                 for k in range(4):
