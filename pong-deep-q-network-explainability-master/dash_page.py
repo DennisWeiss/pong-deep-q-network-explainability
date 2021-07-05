@@ -19,6 +19,7 @@ from collections import deque
 
 import pong
 from pong import showActionTree
+from pong import showActionTreeV3
 import matplotlib
 
 matplotlib.use('Agg')
@@ -53,7 +54,7 @@ METRIC = "Norm"  # What value to compute from logits
 SIZE = 2.0
 
 paused = False
-action_tree_selection = 'taken-action'
+action_tree_selection = 'best-strategies'
 
 tuBerlinLogo = base64.b64encode(open('2000px-TU-Berlin-Logo.png', 'rb').read())
 
@@ -210,15 +211,6 @@ total_reward = 0  # Total reward for each episode
 total_loss = 0  # Total loss for each episode
 
 
-@app.callback(
-    Output('play-and-pause', 'children'),
-    [Input('play-and-pause', 'n_clicks')])
-def clicks(n_clicks):
-    global paused
-    paused = n_clicks % 2 == 1
-    return 'Resume' if n_clicks % 2 == 1 else 'Pause'
-
-
 def pong_step(draw_explainability=True):
     global agent
     global state
@@ -227,14 +219,16 @@ def pong_step(draw_explainability=True):
     global paused
     global action_tree_selection
 
+    print(action_tree_selection)
+
     if paused:
         raise (Exception('Game is paused'))
 
     if draw_explainability:
         if action_tree_selection == 'taken-action':
             action_tree_fig = showActionTree(environment, agent, state, episode, step, 6)
-        # elif action_tree_selection == 'best-strategies':
-        #     action_tree_fig =
+        elif action_tree_selection == 'best-strategies':
+            action_tree_fig = showActionTreeV3(environment, agent, state, episode, step, 4, 8)
 
     # Select and perform an action
     action = agent.act(state)  # Act
@@ -301,6 +295,15 @@ def pong_step(draw_explainability=True):
             encoded_saliency_map.decode()), 'data:image/png;base64,{}'.format(encoded_action_tree.decode())
 
 
+@app.callback(
+    Output('play-and-pause', 'children'),
+    [Input('play-and-pause', 'n_clicks')])
+def clicks(n_clicks):
+    global paused
+    paused = n_clicks % 2 == 1
+    return 'Resume' if n_clicks % 2 == 1 else 'Pause'
+
+
 @app.callback([
     Output('game-screen', 'src'),
     Output('saliency-map', 'src'),
@@ -316,11 +319,12 @@ def take_step(n):
     return pong_step(True)
 
 
-@app.callback([
-    Input(component_id='action-tree-selector', component_property='value')
-])
+@app.callback(
+    Input('action-tree-selector', 'value')
+)
 def action_tree_select(value):
     global action_tree_selection
+    print(value)
     action_tree_selection = value
 
 

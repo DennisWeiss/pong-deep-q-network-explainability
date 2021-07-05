@@ -833,7 +833,6 @@ action_dict = {
 
 
 def showActionTree(env, agent, state, episode, step, number_steps_ahead):
-
     global fig
 
     plt.close('all')
@@ -891,3 +890,130 @@ def showActionTree(env, agent, state, episode, step, number_steps_ahead):
 
     env.ale.restoreState(snapshot)
     return fig
+
+
+def showActionTreeV2(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths,
+                     restricted_branching=False):
+    global fig
+
+    plt.close('all')
+
+    SCALE = 4
+    Q_VALUE_SENSITIVITY = 30
+    Q_VALUE_THRESHOLD = 0.5
+
+    actions = env.unwrapped.get_action_meanings()
+
+    def qValuesAndScreens(env, agent, state, episode, step, number_steps_ahead):
+        if number_steps_ahead == 0:
+            return []
+
+        action_paths = []
+
+        snapshot = env.ale.cloneState()
+
+        with torch.no_grad():
+            _state = torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0)
+            q_values = agent.online_model.forward(_state)
+            q_values_softmax = torch.nn.functional.softmax(Q_VALUE_SENSITIVITY * q_values, dim=1)
+            q_values_softmax_max = torch.max(q_values_softmax).item()
+
+            for i in range(len(actions)):
+                if restricted_branching and q_values_softmax[0, i].item() < Q_VALUE_THRESHOLD * q_values_softmax_max:
+                    continue
+
+                next_state, reward, done, info = env.step(i)
+                next_state = agent.preProcess(next_state)
+                img = env.ale.getScreenRGB()
+                sub_action_paths = []
+                if not done:
+                    sub_action_paths = qValuesAndScreens(env, agent,
+                                                         np.stack((next_state, state[0], state[1], state[2])), episode,
+                                                         step + 1, number_steps_ahead - 1)
+                if len(sub_action_paths) == 0:
+                    action_paths.append([{
+                        'action': i,
+                        'q_value': q_values[0, i].item(),
+                        'q_value_softmax': q_values_softmax[0, i].item(),
+                        'img': img
+                    }])
+                else:
+                    for sub_action_path in sub_action_paths:
+                        action_paths.append([{
+                            'action': i,
+                            'q_value': q_values[0, i].item(),
+                            'q_value_softmax': q_values_softmax[0, i].item(),
+                            'img': img
+                        }] + sub_action_path)
+                env.ale.restoreState(snapshot)
+
+        return action_paths
+
+    def subPathsOfLayers(action_paths, number_steps_ahead, number_of_best_paths):
+        sub_paths = list(map(lambda x: set(), range(number_steps_ahead)))
+        for i in range(number_of_best_paths):
+            for j in range(number_steps_ahead):
+                sub_paths[j].add('_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1])))
+        return sub_paths
+
+    action_paths = qValuesAndScreens(env, agent, state, episode, step, number_steps_ahead)
+
+    def lastQValue(actionPath):
+        if len(actionPath) == 0:
+            return -float('inf')
+        return actionPath[len(actionPath) - 1]['q_value']
+
+    action_paths.sort(key=lambda x: -lastQValue(x))
+
+    number_of_best_paths = min(number_of_best_paths, len(action_paths))
+
+    sub_paths_of_layers = subPathsOfLayers(action_paths, number_steps_ahead, number_of_best_paths)
+
+    actionTree = nx.Graph()
+    actionTree.add_node('_', pos=(0, 0))
+
+    for i in range(number_of_best_paths):
+        for j in range(len(action_paths[i])):
+            x = j + 1
+            y = action_paths[i][j]['action']
+            sub_paths_in_layer = list(sub_paths_of_layers[j])
+            sub_paths_in_layer.sort()
+            path = '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1]))
+            actionTree.add_node(
+                path,
+                pos=(3 * x, sub_paths_in_layer.index(path) * number_of_best_paths / max(len(sub_paths_in_layer) - 1,
+                                                                                        1) - number_of_best_paths / 2),
+                image=action_paths[i][j]['img']
+            )
+            actionTree.add_edge(
+                '_' if j == 0 else '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j])),
+                '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1])),
+                label='{}\n{}'.format(action_dict[actions[action_paths[i][j]['action']]],
+                                      round(action_paths[i][j]['q_value'], 2)),
+                width=max(SCALE * 4 * action_paths[i][j]['q_value_softmax'], 1)
+            )
+
+    pos = nx.get_node_attributes(actionTree, 'pos')
+    fig = plt.figure(episode * MAX_STEP + step, figsize=(SCALE * 12, SCALE * 6))
+    ax = fig.add_subplot(111)
+    nx.draw(actionTree, pos=pos, width=list(nx.get_edge_attributes(actionTree, 'width').values()), node_size=0,
+            with_labels=True)
+    nx.draw_networkx_edge_labels(actionTree, pos=pos, font_size=SCALE * 7,
+                                 edge_labels=nx.get_edge_attributes(actionTree, 'label'))
+
+    for i in range(number_of_best_paths):
+        for j in range(len(action_paths[i])):
+            x = j + 1
+            y = action_paths[i][j]['action']
+            sub_paths_in_layer = list(sub_paths_of_layers[j])
+            sub_paths_in_layer.sort()
+            path = '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1]))
+            coords = ax.transData.transform((3 * x, sub_paths_in_layer.index(path) * number_of_best_paths / max(
+                len(sub_paths_in_layer) - 1, 1) - number_of_best_paths / 2))
+            fig.figimage(actionTree.nodes[path]['image'], xo=coords[0] - 50, yo=coords[1] - 80, zorder=1)
+
+    return fig
+
+
+def showActionTreeV3(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths):
+    return showActionTreeV2(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths, True)
