@@ -156,7 +156,16 @@ app.layout = html.Div(children=[
             ),
             html.Div(
                 children=[
-                    html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0)
+                    html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0),
+                    dcc.RadioItems(
+                        options=[
+                            {'label': 'Taken action', 'value': 'taken-action'},
+                            {'label': 'Best strategies', 'value': 'best-strategies'},
+                        ],
+                        value='taken-action',
+                        labelStyle={'display': 'inline-block', 'color': '#DED8D8',
+                                    'margin-right': '15px', 'margin-top': '15px'}
+                    ),
                 ],
                 style={'width': '15%', 'display': 'inline-block', 'padding-top': '40px'}
             )
