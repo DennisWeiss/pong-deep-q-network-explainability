@@ -53,6 +53,7 @@ METRIC = "Norm"  # What value to compute from logits
 SIZE = 2.0
 
 paused = False
+action_tree_selection = 'taken-action'
 
 tuBerlinLogo = base64.b64encode(open('2000px-TU-Berlin-Logo.png', 'rb').read())
 
@@ -158,6 +159,7 @@ app.layout = html.Div(children=[
                 children=[
                     html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0),
                     dcc.RadioItems(
+                        id='action-tree-selector',
                         options=[
                             {'label': 'Taken action', 'value': 'taken-action'},
                             {'label': 'Best strategies', 'value': 'best-strategies'},
@@ -223,12 +225,16 @@ def pong_step(draw_explainability=True):
     global episode
     global step
     global paused
+    global action_tree_selection
 
     if paused:
         raise (Exception('Game is paused'))
 
     if draw_explainability:
-        action_tree_fig = showActionTree(environment, agent, state, episode, step, 6)
+        if action_tree_selection == 'taken-action':
+            action_tree_fig = showActionTree(environment, agent, state, episode, step, 6)
+        # elif action_tree_selection == 'best-strategies':
+        #     action_tree_fig =
 
     # Select and perform an action
     action = agent.act(state)  # Act
@@ -308,6 +314,14 @@ def take_step(n):
         for i in range(25):
             pong_step(False)
     return pong_step(True)
+
+
+@app.callback([
+    Input(component_id='action-tree-selector', component_property='value')
+])
+def action_tree_select(value):
+    global action_tree_selection
+    action_tree_selection = value
 
 
 if __name__ == '__main__':

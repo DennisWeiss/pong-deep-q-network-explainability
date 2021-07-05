@@ -821,6 +821,7 @@ class Agent:
 
         return action
 
+
 action_dict = {
     'NOOP': 'x',
     'FIRE': 'O',
@@ -829,6 +830,7 @@ action_dict = {
     'LEFTFIRE': '<-O',
     'RIGHTFIRE': 'O->'
 }
+
 
 def showActionTree(env, agent, state, episode, step, number_steps_ahead):
 
