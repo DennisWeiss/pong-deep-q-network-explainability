@@ -42,7 +42,7 @@ ALPHA = 0.00025  # Learning rate
 EPSILON_DECAY = 0.99  # Epsilon decay rate by step
 RENDER_GAME_WINDOW = True  # Opens a new window to render the game (Won't work on colab default)
 
-# OCCLUSIONB HYPERPARAMETERS
+# OCCLUSION PARAMETERS
 THRESHOLD = 0.0
 MODE = 'value'  # 'value' , 'action' or 'advantage', if not 'value', parameter action=ACTION needs to be valid
 # 'value' refers to the value estimation in the network, advantage stands for the advantage estimation and 'action' stands for the final logits
@@ -72,7 +72,7 @@ app.layout = html.Div(children=[
                 [
                     html.H4("Understanding Policies", className="app__header__title"),
                     html.P(
-                        "A WebApp made by Galip Ümit Yolcu, Dennis Weiss and Egemen Okur to understand policies of reinforcement learning based agents.",
+                        "A web app made by Galip Ümit Yolcu, Dennis Weiss and Egemen Okur to understand policies of reinforcement learning based agents.",
                         className="app__header__title--grey",
                     ),
                 ],
@@ -82,7 +82,7 @@ app.layout = html.Div(children=[
                 [
                     html.A(
                         html.Button("Github", className="link-button", style=white_button_style),
-                        href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                        href="https://github.com/DennisWeiss/pong-deep-q-network-explainability",
                     ),
                     html.A(
                         html.Button("Paper", className="link-button", style=white_button_style),
@@ -93,7 +93,7 @@ app.layout = html.Div(children=[
                             src='data:image/png;base64,{}'.format(tuBerlinLogo.decode()),
                             className="app__menu__img",
                         ),
-                        href="https://plotly.com/dash/",
+                        href="https://www.ni.tu-berlin.de/menue/neural_information_processing_group/",
                     ),
                 ],
                 className="app__header__logo",
@@ -119,7 +119,7 @@ app.layout = html.Div(children=[
                                    "padding": "0px 20px 10px 20px"}
                         )],
                         className="graph__container first",
-                        style={'display': 'inline-block', 'margin': '8px'}
+                        style={'display': 'inline-block', 'margin': '8px 60px', }
                     ),
                     html.Div(
                         [
@@ -137,7 +137,7 @@ app.layout = html.Div(children=[
                             )
                         ],
                         className="graph__container second",
-                        style={'display': 'inline-block', 'margin': '8px'}
+                        style={'display': 'inline-block', 'margin': '8px 60px'}
                     ),
                     html.Div(children=[
                         html.Img(
@@ -154,11 +154,15 @@ app.layout = html.Div(children=[
                         n_intervals=0
                     )
                 ],
-                style={'width': '85%', 'display': 'inline-block'}
+                style={'width': '85%', 'display': 'inline-block', 'margin': '8px 12px'}
             ),
             html.Div(
                 children=[
                     html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0),
+                    html.Div(
+                        'Branch on:',
+                        style={'margin-top': '50px', 'color': 'white'}
+                    ),
                     dcc.RadioItems(
                         id='action-tree-selector',
                         options=[
@@ -218,8 +222,6 @@ def pong_step(draw_explainability=True):
     global step
     global paused
     global action_tree_selection
-
-    print(action_tree_selection)
 
     if paused:
         raise (Exception('Game is paused'))
@@ -309,8 +311,7 @@ def clicks(n_clicks):
     Output('saliency-map', 'src'),
     Output('action-tree', 'src')
 ],
-    [Input('interval-component', 'n_intervals')],
-    prevent_initial_call=True
+    [Input('interval-component', 'n_intervals')]
 )
 def take_step(n):
     if n == 0:
@@ -320,13 +321,14 @@ def take_step(n):
 
 
 @app.callback(
-    Input('action-tree-selector', 'value')
+    Output('action-tree-selector', 'children'),
+    [Input('action-tree-selector', 'value')]
 )
 def action_tree_select(value):
     global action_tree_selection
-    print(value)
     action_tree_selection = value
+    return []
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False, dev_tools_ui=False)
