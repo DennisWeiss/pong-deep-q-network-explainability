@@ -18,6 +18,11 @@ import time
 from collections import deque
 
 import pong
+from pong import showActionTree
+from pong import showActionTreeV3
+import matplotlib
+
+matplotlib.use('Agg')
 
 ENVIRONMENT = "PongDeterministic-v4"
 DEVICE = torch.device('cpu')
@@ -49,117 +54,127 @@ METRIC = "Norm"  # What value to compute from logits
 SIZE = 2.0
 
 paused = False
+action_tree_selection = 'best-strategies'
+
+tuBerlinLogo = base64.b64encode(open('2000px-TU-Berlin-Logo.png', 'rb').read())
+
+app_color = {"graph_bg": "#082255", "graph_line": "#007ACE"}
+
+white_button_style = {'color': '#DED8D8', 'margin-right': '15x', 'margin-left': '15px'}
 
 app = dash.Dash()
 
-app.layout = html.Div(
-    children=[
-        html.Div(
-            children=[
-                html.Div(children=[
-                    html.Img(
-                        id='game-screen'
+app.layout = html.Div(children=[
+    # header
+    html.Div(
+        [
+            html.Div(
+                [
+                    html.H4("Understanding Policies", className="app__header__title"),
+                    html.P(
+                        "A WebApp made by Galip Ümit Yolcu, Dennis Weiss and Egemen Okur to understand policies of reinforcement learning based agents.",
+                        className="app__header__title--grey",
                     ),
                 ],
-                    style={'width': '50%', 'display': 'inline-block', 'text-align': 'center'}),
-                html.Div(children=[
-                    html.Img(
-                        id='saliency-map'
+                className="app__header__desc",
+            ),
+            html.Div(
+                [
+                    html.A(
+                        html.Button("Github", className="link-button", style=white_button_style),
+                        href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                    ),
+                    html.A(
+                        html.Button("Paper", className="link-button", style=white_button_style),
+                        href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                    ),
+                    html.A(
+                        html.Img(
+                            src='data:image/png;base64,{}'.format(tuBerlinLogo.decode()),
+                            className="app__menu__img",
+                        ),
+                        href="https://plotly.com/dash/",
+                    ),
+                ],
+                className="app__header__logo",
+            ),
+        ],
+        className="app__header",
+    ),
+    html.Div(
+        children=[
+            html.Div(
+                children=[
+                    html.Div(children=[
+                        html.Div(
+                            [
+                                html.H6(
+                                    "Game Screen", className="graph__title"
+                                )
+                            ]
+                        ),
+                        html.Img(
+                            id='game-screen',
+                            style={'align': 'center',
+                                   "padding": "0px 20px 10px 20px"}
+                        )],
+                        className="graph__container first",
+                        style={'display': 'inline-block', 'margin': '8px'}
+                    ),
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.H6(
+                                        "Saliency Map", className="graph__title"
+                                    )
+                                ]
+                            ),
+                            html.Img(
+                                id='saliency-map',
+                                style={'align': 'center',
+                                       "padding": "0px 20px 10px 20px"}
+                            )
+                        ],
+                        className="graph__container second",
+                        style={'display': 'inline-block', 'margin': '8px'}
+                    ),
+                    html.Div(children=[
+                        html.Img(
+                            id='action-tree',
+                            width=1500,
+                            style={"padding": "10px 20px 10px 20px"}
+                        )],
+                        className="graph__container second",
+                        style={'margin': '8px'}
+                    ),
+                    dcc.Interval(
+                        id='interval-component',
+                        interval=4000,
+                        n_intervals=0
                     )
                 ],
-                    style={'width': '50%', 'display': 'inline-block', 'text-align': 'center'}),
-                html.Img(
-                    id='action-tree',
-                    width=1750,
-                    style={'margin-left': '-200px'}
-                ),
-                dcc.Interval(
-                    id='interval-component',
-                    interval=4000,
-                    n_intervals=0
-                )
-            ],
-            style={'width': '85%', 'display': 'inline-block'}
-        ),
-        html.Div(
-            children=[
-                html.Button(children='Test', id='play-and-pause', n_clicks=0)
-            ],
-            style={'width': '15%', 'display': 'inline-block', 'padding-top': '40px'}
-        )
-    ],
-    style={'display': 'flex'}
-)
-
-action_dict = {
-    'NOOP': 'x',
-    'FIRE': 'O',
-    'LEFT': '<-',
-    'RIGHT': '->',
-    'LEFTFIRE': '<-O',
-    'RIGHTFIRE': 'O->'
-}
-
-fig = None
-
-
-def showActionTree(env, agent, state, episode, step, number_steps_ahead):
-    global fig
-
-    SCALE = 4
-    Q_VALUE_SENSITIVITY = 30
-
-    actions = env.unwrapped.get_action_meanings()
-    snapshot = env.ale.cloneState()
-    current_snapshot = None
-    actionTree = nx.Graph()
-    actionTree.add_node('0', pos=(0, 0))
-
-    action = None
-    for i in range(number_steps_ahead):
-        prev_action = action
-        action = agent.act(state)
-        with torch.no_grad():
-            _state = torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0)
-            q_values = agent.online_model.forward(_state)
-            q_values_softmax = torch.nn.functional.softmax(Q_VALUE_SENSITIVITY * q_values, dim=1)
-
-            current_snapshot = env.ale.cloneState()
-            for j in range(len(actions)):
-                next_state, reward, done, info = env.step(j)
-                actionTree.add_node(
-                    '{}_{}'.format(str(i + 1), str(j)),
-                    pos=(3 * (i + 1), (len(actions) - 1) / 2 - j),
-                    image=env.ale.getScreenRGB()
-                )
-                actionTree.add_edge(
-                    '0' if i == 0 else '{}_{}'.format(str(i), str(prev_action)),
-                    '{}_{}'.format(str(i + 1), str(j)),
-                    label='{}\n{}'.format(action_dict[actions[j]], round(q_values[0, j].item(), 2)),
-                    width=max(SCALE * 4 * q_values_softmax[0, j].item(), 1)
-                )
-                env.ale.restoreState(current_snapshot)
-
-            next_state, reward, done, info = env.step(action)
-            next_state = agent.preProcess(next_state)  # Process image
-            next_state = np.stack((next_state, state[0], state[1], state[2]))
-            state = next_state
-    pos = nx.get_node_attributes(actionTree, 'pos')
-    fig = plt.figure(episode * MAX_STEP + step, figsize=(SCALE * 12, SCALE * 5))
-    ax = fig.add_subplot(111)
-    nx.draw(actionTree, pos=pos, width=list(nx.get_edge_attributes(actionTree, 'width').values()), node_size=0)
-    nx.draw_networkx_edge_labels(actionTree, pos=pos, font_size=SCALE * 7,
-                                 edge_labels=nx.get_edge_attributes(actionTree, 'label'))
-
-    for i in range(number_steps_ahead):
-        for j in range(len(actions)):
-            coords = ax.transData.transform((3 * (i + 1), (len(actions) - 1) / 2 - j))
-            fig.figimage(actionTree.nodes['{}_{}'.format(str(i + 1), str(j))]['image'], xo=coords[0] - 50,
-                         yo=coords[1] - 80, zorder=1)
-
-    env.ale.restoreState(snapshot)
-    return fig
-
+                style={'width': '85%', 'display': 'inline-block'}
+            ),
+            html.Div(
+                children=[
+                    html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0),
+                    dcc.RadioItems(
+                        id='action-tree-selector',
+                        options=[
+                            {'label': 'Taken action', 'value': 'taken-action'},
+                            {'label': 'Best strategies', 'value': 'best-strategies'},
+                        ],
+                        value='taken-action',
+                        labelStyle={'display': 'inline-block', 'color': '#DED8D8',
+                                    'margin-right': '15px', 'margin-top': '15px'}
+                    ),
+                ],
+                style={'width': '15%', 'display': 'inline-block', 'padding-top': '40px'}
+            )
+        ],
+        style={'display': 'flex'}
+    )])
 
 environment = gym.make(ENVIRONMENT)  # Get env
 agent = pong.Agent(environment)  # Create Agent
@@ -196,27 +211,24 @@ total_reward = 0  # Total reward for each episode
 total_loss = 0  # Total loss for each episode
 
 
-@app.callback(
-    Output('play-and-pause', 'children'),
-    [Input('play-and-pause', 'n_clicks')])
-def clicks(n_clicks):
-    global paused
-    paused = n_clicks % 2 == 1
-    return 'Resume' if n_clicks % 2 == 1 else 'Pause'
-
-
 def pong_step(draw_explainability=True):
     global agent
     global state
     global episode
     global step
     global paused
+    global action_tree_selection
+
+    print(action_tree_selection)
 
     if paused:
-        raise(Exception('Game is paused'))
+        raise (Exception('Game is paused'))
 
     if draw_explainability:
-        action_tree_fig = showActionTree(environment, agent, state, episode, step, 6)
+        if action_tree_selection == 'taken-action':
+            action_tree_fig = showActionTree(environment, agent, state, episode, step, 6)
+        elif action_tree_selection == 'best-strategies':
+            action_tree_fig = showActionTreeV3(environment, agent, state, episode, step, 4, 8)
 
     # Select and perform an action
     action = agent.act(state)  # Act
@@ -280,8 +292,16 @@ def pong_step(draw_explainability=True):
         encoded_saliency_map = base64.b64encode(open('saliency_map.png', 'rb').read())
 
         return 'data:image/png;base64,{}'.format(encoded_game_screen.decode()), 'data:image/png;base64,{}'.format(
-            encoded_saliency_map.decode()), 'data:image/png;base64,{}'.format(
-            encoded_action_tree.decode())
+            encoded_saliency_map.decode()), 'data:image/png;base64,{}'.format(encoded_action_tree.decode())
+
+
+@app.callback(
+    Output('play-and-pause', 'children'),
+    [Input('play-and-pause', 'n_clicks')])
+def clicks(n_clicks):
+    global paused
+    paused = n_clicks % 2 == 1
+    return 'Resume' if n_clicks % 2 == 1 else 'Pause'
 
 
 @app.callback([
@@ -289,7 +309,9 @@ def pong_step(draw_explainability=True):
     Output('saliency-map', 'src'),
     Output('action-tree', 'src')
 ],
-    Input('interval-component', 'n_intervals'))
+    [Input('interval-component', 'n_intervals')],
+    prevent_initial_call=True
+)
 def take_step(n):
     if n == 0:
         for i in range(25):
@@ -297,5 +319,14 @@ def take_step(n):
     return pong_step(True)
 
 
+@app.callback(
+    Input('action-tree-selector', 'value')
+)
+def action_tree_select(value):
+    global action_tree_selection
+    print(value)
+    action_tree_selection = value
 
-app.run_server(debug=True, dev_tools_ui=False)
+
+if __name__ == '__main__':
+    app.run_server(debug=True)

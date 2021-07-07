@@ -8,15 +8,34 @@ import time
 import json
 import random
 import numpy as np
-
+import networkx as nx
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import matplotlib
+matplotlib.use('Agg')
 
 from collections import deque
 
 DEVICE = "cpu"  # torch.device("cuda" if torch.cuda.is_available() else "cpu")
+ENVIRONMENT = "PongDeterministic-v4"
+DEVICE = torch.device('cpu')
+SAVE_MODELS = False  # Save models to file so you can test later
+MODEL_PATH = "./models/pong-cnn-"  # Models path for saving or loading
+SAVE_MODEL_INTERVAL = 10  # Save models at every X epoch
+TRAIN_MODEL = False  # Train model while playing (Make it False when testing a model)
+LOAD_MODEL_FROM_FILE = True  # Load model from file
+LOAD_FILE_EPISODE = 900  # Load Xth episode from file
+BATCH_SIZE = 64  # Minibatch size that select randomly from mem for train nets
+MAX_EPISODE = 100000  # Max episode
+MAX_STEP = 100000  # Max step size for one episode
+MAX_MEMORY_LEN = 50000  # Max memory len
+MIN_MEMORY_LEN = 40000  # Min memory len before start train
+GAMMA = 0.97  # Discount rate
+ALPHA = 0.00025  # Learning rate
+EPSILON_DECAY = 0.99  # Epsilon decay rate by step
+RENDER_GAME_WINDOW = True  # Opens a new window to render the game (Won't work on colab default)
 
 # p and q are vectors of positive probabilities, summing to 1
 # Returns KL Divergence of the distributions
@@ -802,3 +821,199 @@ class Agent:
 
         return action
 
+
+action_dict = {
+    'NOOP': 'x',
+    'FIRE': 'O',
+    'LEFT': '<-',
+    'RIGHT': '->',
+    'LEFTFIRE': '<-O',
+    'RIGHTFIRE': 'O->'
+}
+
+
+def showActionTree(env, agent, state, episode, step, number_steps_ahead):
+    global fig
+
+    plt.close('all')
+
+    SCALE = 4
+    Q_VALUE_SENSITIVITY = 30
+
+    actions = env.unwrapped.get_action_meanings()
+    snapshot = env.ale.cloneState()
+    current_snapshot = None
+    actionTree = nx.Graph()
+    actionTree.add_node('0', pos=(0, 0))
+
+    action = None
+    for i in range(number_steps_ahead):
+        prev_action = action
+        action = agent.act(state)
+        with torch.no_grad():
+            _state = torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0)
+            q_values = agent.online_model.forward(_state)
+            q_values_softmax = torch.nn.functional.softmax(Q_VALUE_SENSITIVITY * q_values, dim=1)
+
+            current_snapshot = env.ale.cloneState()
+            for j in range(len(actions)):
+                next_state, reward, done, info = env.step(j)
+                actionTree.add_node(
+                    '{}_{}'.format(str(i + 1), str(j)),
+                    pos=(3 * (i + 1), (len(actions) - 1) / 2 - j),
+                    image=env.ale.getScreenRGB()
+                )
+                actionTree.add_edge(
+                    '0' if i == 0 else '{}_{}'.format(str(i), str(prev_action)),
+                    '{}_{}'.format(str(i + 1), str(j)),
+                    label='{}\n{}'.format(action_dict[actions[j]], round(q_values[0, j].item(), 2)),
+                    width=max(SCALE * 4 * q_values_softmax[0, j].item(), 1)
+                )
+                env.ale.restoreState(current_snapshot)
+
+            next_state, reward, done, info = env.step(action)
+            next_state = agent.preProcess(next_state)  # Process image
+            next_state = np.stack((next_state, state[0], state[1], state[2]))
+            state = next_state
+    pos = nx.get_node_attributes(actionTree, 'pos')
+    fig = plt.figure(episode * MAX_STEP + step, figsize=(SCALE * 12, SCALE * 5))
+    ax = fig.add_subplot(111)
+    nx.draw(actionTree, pos=pos, width=list(nx.get_edge_attributes(actionTree, 'width').values()), node_size=0)
+    nx.draw_networkx_edge_labels(actionTree, pos=pos, font_size=SCALE * 7,
+                                 edge_labels=nx.get_edge_attributes(actionTree, 'label'))
+
+    for i in range(number_steps_ahead):
+        for j in range(len(actions)):
+            coords = ax.transData.transform((3 * (i + 1), (len(actions) - 1) / 2 - j))
+            fig.figimage(actionTree.nodes['{}_{}'.format(str(i + 1), str(j))]['image'], xo=coords[0] - 50,
+                         yo=coords[1] - 80, zorder=1)
+
+    env.ale.restoreState(snapshot)
+    return fig
+
+
+def showActionTreeV2(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths,
+                     restricted_branching=False):
+    global fig
+
+    plt.close('all')
+
+    SCALE = 4
+    Q_VALUE_SENSITIVITY = 30
+    Q_VALUE_THRESHOLD = 0.5
+
+    actions = env.unwrapped.get_action_meanings()
+
+    def qValuesAndScreens(env, agent, state, episode, step, number_steps_ahead):
+        if number_steps_ahead == 0:
+            return []
+
+        action_paths = []
+
+        snapshot = env.ale.cloneState()
+
+        with torch.no_grad():
+            _state = torch.tensor(state, dtype=torch.float, device=DEVICE).unsqueeze(0)
+            q_values = agent.online_model.forward(_state)
+            q_values_softmax = torch.nn.functional.softmax(Q_VALUE_SENSITIVITY * q_values, dim=1)
+            q_values_softmax_max = torch.max(q_values_softmax).item()
+
+            for i in range(len(actions)):
+                if restricted_branching and q_values_softmax[0, i].item() < Q_VALUE_THRESHOLD * q_values_softmax_max:
+                    continue
+
+                next_state, reward, done, info = env.step(i)
+                next_state = agent.preProcess(next_state)
+                img = env.ale.getScreenRGB()
+                sub_action_paths = []
+                if not done:
+                    sub_action_paths = qValuesAndScreens(env, agent,
+                                                         np.stack((next_state, state[0], state[1], state[2])), episode,
+                                                         step + 1, number_steps_ahead - 1)
+                if len(sub_action_paths) == 0:
+                    action_paths.append([{
+                        'action': i,
+                        'q_value': q_values[0, i].item(),
+                        'q_value_softmax': q_values_softmax[0, i].item(),
+                        'img': img
+                    }])
+                else:
+                    for sub_action_path in sub_action_paths:
+                        action_paths.append([{
+                            'action': i,
+                            'q_value': q_values[0, i].item(),
+                            'q_value_softmax': q_values_softmax[0, i].item(),
+                            'img': img
+                        }] + sub_action_path)
+                env.ale.restoreState(snapshot)
+
+        return action_paths
+
+    def subPathsOfLayers(action_paths, number_steps_ahead, number_of_best_paths):
+        sub_paths = list(map(lambda x: set(), range(number_steps_ahead)))
+        for i in range(number_of_best_paths):
+            for j in range(number_steps_ahead):
+                sub_paths[j].add('_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1])))
+        return sub_paths
+
+    action_paths = qValuesAndScreens(env, agent, state, episode, step, number_steps_ahead)
+
+    def lastQValue(actionPath):
+        if len(actionPath) == 0:
+            return -float('inf')
+        return actionPath[len(actionPath) - 1]['q_value']
+
+    action_paths.sort(key=lambda x: -lastQValue(x))
+
+    number_of_best_paths = min(number_of_best_paths, len(action_paths))
+
+    sub_paths_of_layers = subPathsOfLayers(action_paths, number_steps_ahead, number_of_best_paths)
+
+    actionTree = nx.Graph()
+    actionTree.add_node('_', pos=(0, 0))
+
+    for i in range(number_of_best_paths):
+        for j in range(len(action_paths[i])):
+            x = j + 1
+            y = action_paths[i][j]['action']
+            sub_paths_in_layer = list(sub_paths_of_layers[j])
+            sub_paths_in_layer.sort()
+            path = '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1]))
+            actionTree.add_node(
+                path,
+                pos=(3 * x, sub_paths_in_layer.index(path) * number_of_best_paths / max(len(sub_paths_in_layer) - 1,
+                                                                                        1) - number_of_best_paths / 2),
+                image=action_paths[i][j]['img']
+            )
+            actionTree.add_edge(
+                '_' if j == 0 else '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j])),
+                '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1])),
+                label='{}\n{}'.format(action_dict[actions[action_paths[i][j]['action']]],
+                                      round(action_paths[i][j]['q_value'], 2)),
+                width=max(SCALE * 4 * action_paths[i][j]['q_value_softmax'], 1)
+            )
+
+    pos = nx.get_node_attributes(actionTree, 'pos')
+    fig = plt.figure(episode * MAX_STEP + step, figsize=(SCALE * 12, SCALE * 6))
+    ax = fig.add_subplot(111)
+    nx.draw(actionTree, pos=pos, width=list(nx.get_edge_attributes(actionTree, 'width').values()), node_size=0,
+            with_labels=True)
+    nx.draw_networkx_edge_labels(actionTree, pos=pos, font_size=SCALE * 7,
+                                 edge_labels=nx.get_edge_attributes(actionTree, 'label'))
+
+    for i in range(number_of_best_paths):
+        for j in range(len(action_paths[i])):
+            x = j + 1
+            y = action_paths[i][j]['action']
+            sub_paths_in_layer = list(sub_paths_of_layers[j])
+            sub_paths_in_layer.sort()
+            path = '_'.join(map(lambda x: str(x['action']), action_paths[i][0:j + 1]))
+            coords = ax.transData.transform((3 * x, sub_paths_in_layer.index(path) * number_of_best_paths / max(
+                len(sub_paths_in_layer) - 1, 1) - number_of_best_paths / 2))
+            fig.figimage(actionTree.nodes[path]['image'], xo=coords[0] - 50, yo=coords[1] - 80, zorder=1)
+
+    return fig
+
+
+def showActionTreeV3(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths):
+    return showActionTreeV2(env, agent, state, episode, step, number_steps_ahead, number_of_best_paths, True)
