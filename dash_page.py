@@ -64,121 +64,207 @@ white_button_style = {'color': '#DED8D8', 'margin-right': '15x', 'margin-left': 
 
 app = dash.Dash()
 
-app.layout = html.Div(children=[
-    # header
-    html.Div(
-        [
-            html.Div(
-                [
-                    html.H4("Understanding Policies", className="app__header__title"),
-                    html.P(
-                        "A web app made by Galip Ümit Yolcu, Dennis Weiss and Egemen Okur to understand policies of reinforcement learning based agents.",
-                        className="app__header__title--grey",
-                    ),
-                ],
-                className="app__header__desc",
-            ),
-            html.Div(
-                [
-                    html.A(
-                        html.Button("Github", className="link-button", style=white_button_style),
-                        href="https://github.com/DennisWeiss/pong-deep-q-network-explainability",
-                    ),
-                    html.A(
-                        html.Button("Paper", className="link-button", style=white_button_style),
-                        href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
-                    ),
-                    html.A(
-                        html.Img(
-                            src='data:image/png;base64,{}'.format(tuBerlinLogo.decode()),
-                            className="app__menu__img",
+app = dash.Dash(
+    __name__,
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+)
+app.title = "Understanding Policies"
+
+img1 = base64.b64encode(open('action_tree.png', 'rb').read())
+img2 = base64.b64encode(open('saliency_map.png', 'rb').read())
+img3 = base64.b64encode(open('game_screen.png', 'rb').read())
+img4 = base64.b64encode(open('2000px-TU-Berlin-Logo.png', 'rb').read())
+
+server = app.server
+
+app_color = {"graph_bg": "#082255", "graph_line": "#007ACE"}
+
+white_button_style = {'color': '#DED8D8', 'margin-right':'15x', 'margin-left':'15px'}
+
+app.layout = html.Div(
+    [
+
+
+
+
+        # header
+        html.Div(
+            [
+                html.Div(
+                    [
+                        html.H4("Understanding Policies", className="app__header__title"),
+                        html.P(
+                            "A WebApp made by Galip Ümit Yolcu, Dennis Weiss and Egemen Okur to understand policies of reinforcement learning based agents.",
+                            className="app__header__title--grey",
                         ),
-                        href="https://www.ni.tu-berlin.de/menue/neural_information_processing_group/",
-                    ),
-                ],
-                className="app__header__logo",
-            ),
-        ],
-        className="app__header",
-    ),
-    html.Div(
-        children=[
-            html.Div(
-                children=[
-                    html.Div(children=[
+                    ],
+                    className="app__header__desc",
+                ),
+                html.Div(
+                    [
+                        html.A(
+                            html.Button("Github", className="link-button", style=white_button_style),
+                            href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                        ),
+                        html.A(
+                            html.Button("Paper", className="link-button", style=white_button_style),
+                            href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                        ),
+                        html.A(
+                            html.Img(
+                                src='data:image/png;base64,{}'.format(img4.decode()),
+                                className="app__menu__img",
+                            ),
+                            href="https://plotly.com/dash/",
+                        ),
+                    ],
+                    className="app__header__logo",
+                ),
+            ],
+            className="app__header",
+        ),
+
+        html.Div(
+            [
+                # wind speed
+                html.Div(
+                    [
+                        html.Div(
+                            [html.H6("About",className="graph__title"),
+                             html.H6("Reinforcement learning agents have achieved state-of-the-art results in atari games and are effective at maximizing rewards. Despite their impressive performance, they have been a black box for people with no mathematical background. Understanding Agent’s actions are important to interpret their models before using them to solve real-world problems. In this work, we investigate deep RL agents that use raw visual input to make their decisions. We focus on exploring the utility of visual saliency and on visualizing the game tree of our agent to gain insight into the decisions made by these agents. ",className="text__container")
+                             ]
+                        ),
+                    ],
+                    className="one-third column first__container",
+                ),
+                html.Div(
+                    [
+                        html.Div(
+                            [html.H6("Saliency Maps",className="graph__title"),
+                             html.H6("Saliency maps process images to differentiate visual features in images. The purpose of saliency maps is to represent the saliency at every location in the visual field by a scalar quantity. This  allows to show what parts of an image or video frame are most important to a network’s decisions. The Idea of the Saliency map is that we compute the gradient of the output category with respect to the input image. All positive values in the gradient explain the small change to that pixel will increase the output value.",className="text__container")
+                             ]
+                        ),
+                    ],
+                    className="one-third column second__container",
+                ),
+                html.Div(
+                    [
                         html.Div(
                             [
-                                html.H6(
-                                    "Game Screen", className="graph__title"
-                                )
-                            ]
+                             html.H6("Dueling Neural Network", className="graph__title"),
+                             html.H6("The project uses Dueling Neural Network Architecture that was trained with the DDQN algorithm. The lower layers of the Dueling Neural Network are convolutional as in original DQNs. But instead of following the convolutional layers with a single sequence of fully connected layers, it uses two streams - value function stream and advantage function stream - to separately estimate the value and the advantages of each action. Both streams are then combined via a special aggregating layer which produces an estimate of the state-action value function Q.",className="text__container")
+
+                             ]
                         ),
-                        html.Img(
-                            id='game-screen',
-                            style={'align': 'center',
-                                   "padding": "0px 20px 10px 20px"}
-                        )],
-                        className="graph__container first",
-                        style={'display': 'inline-block', 'margin': '8px 60px', }
-                    ),
-                    html.Div(
-                        [
-                            html.Div(
-                                [
-                                    html.H6(
-                                        "Saliency Map", className="graph__title"
-                                    )
-                                ]
-                            ),
-                            html.Img(
-                                id='saliency-map',
-                                style={'align': 'center',
-                                       "padding": "0px 20px 10px 20px"}
-                            )
-                        ],
-                        className="graph__container second",
-                        style={'display': 'inline-block', 'margin': '8px 60px'}
-                    ),
-                    html.Div(children=[
+                    ],
+                    className="one-third column third__container",
+                ),
+
+            ],
+            className="app__content",
+        ),
+        html.Div(
+            [
+                # wind speed
+                html.Div(
+                    [
+                        html.Div(
+                            [html.H6("Game Tree with Q-Values", className="graph__title")]
+                        ),
+                        dcc.RadioItems(
+                            id='action-tree-selector',
+                            options=[
+                                {'label': 'Taken action', 'value': 'taken-action'},
+                                {'label': 'Best strategies', 'value': 'best-strategies'},
+                            ],
+                            value='taken-action',
+                            labelStyle={'display': 'inline-block', 'color': '#DED8D8',
+                                        'margin-left': '45px', 'margin-top': '15px'}),
                         html.Img(
                             id='action-tree',
-                            width=1500,
-                            style={"padding": "10px 20px 10px 20px"}
-                        )],
-                        className="graph__container second",
-                        style={'margin': '8px'}
-                    ),
-                    dcc.Interval(
-                        id='interval-component',
-                        interval=4000,
-                        n_intervals=0
-                    )
-                ],
-                style={'width': '85%', 'display': 'inline-block', 'margin': '8px 12px'}
-            ),
-            html.Div(
-                children=[
-                    html.Button(children='Test', id='play-and-pause', style={'margin': '0 auto'}, n_clicks=0),
-                    html.Div(
-                        'Branch on:',
-                        style={'margin-top': '50px', 'color': 'white'}
-                    ),
-                    dcc.RadioItems(
-                        id='action-tree-selector',
-                        options=[
-                            {'label': 'Taken action', 'value': 'taken-action'},
-                            {'label': 'Best strategies', 'value': 'best-strategies'},
-                        ],
-                        value='taken-action',
-                        labelStyle={'display': 'inline-block', 'color': '#DED8D8',
-                                    'margin-right': '15px', 'margin-top': '15px'}
-                    ),
-                ],
-                style={'width': '15%', 'display': 'inline-block', 'padding-top': '40px'}
-            )
-        ],
-        style={'display': 'flex'}
-    )])
+                            style={'height': '82%', 'width': '95%', 'display': 'inline-block', 'text-align': 'center', "padding": "25px 25px 0px 25px" }
+                            # className="app__menu__img",
+                        ),
+                        dcc.Interval(
+                            id='interval-component',
+                            interval=4000,
+                            n_intervals=0
+                        )
+                    ],
+                    className="two-thirds column wind__speed__container",
+                ),
+                html.Div(
+                    [
+                        # histogram
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.H6(
+                                            "Game Screen",
+                                            className="graph__title",
+                                        )
+                                    ]
+                                ),
+                                html.A(
+                                    html.Img(
+                                        id='game-screen',
+                                        style={'width': '90%', 'display': 'inline-block', 'align': 'center',"padding": "0px 20px 10px 20px" }
+                                    ),
+                                ),
+                            ],
+                            className="graph__container first",
+                        ),
+                        # wind direction
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.H6(
+                                            "Saliency Map", className="graph__title"
+                                        )
+                                    ]
+                                ),
+                                html.A(
+                                    html.Img(
+                                        id='saliency-map',
+                                        style={'width': '90%', 'display': 'inline-block', 'align': 'center',"padding": "0px 20px 10px 20px" }
+                                    ),
+
+                                ),
+                            ],
+                            className="graph__container second",
+                        ),
+                    ],
+                    className="one-third column histogram__direction",
+                ),
+
+            ],
+            className="app__content",
+        ),
+        # Footer
+        html.Div(
+            [
+
+                html.Div(
+                    [
+                        html.H4("Conclusion", className="app__header__title",  style={"margin-left": "15px" }),
+                        html.H6(
+                            "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.",
+                            className="text__container",)
+
+                    ],
+                    className="one-whole column footer__container",
+                ),
+            ],
+            className="app__header",
+        ),
+    ],
+    className="app__container",
+)
+
+
+
 
 environment = gym.make(ENVIRONMENT)  # Get env
 agent = pong.Agent(environment)  # Create Agent
