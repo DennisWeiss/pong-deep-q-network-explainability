@@ -62,8 +62,6 @@ app_color = {"graph_bg": "#082255", "graph_line": "#007ACE"}
 
 white_button_style = {'color': '#DED8D8', 'margin-right': '15x', 'margin-left': '15px'}
 
-app = dash.Dash()
-
 app = dash.Dash(
     __name__,
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
