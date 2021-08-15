@@ -183,7 +183,7 @@ app.layout = html.Div(
                         ),
                         dcc.Interval(
                             id='interval-component',
-                            interval=4000, # THIS VALUE NEEDS TO BE ADJUSTED ACCORDING TO PROCESSOR POWER. 4000 WORKS WITH AN i9-11900K. FOR SLOWER PROCESSOR YOU PROBABLY NEED TO SET THIS INTERVAL HIGHER IN ORDER TO MAKE THE APP WORK.
+                            interval=4000, # THIS VALUE NEEDS TO BE ADJUSTED ACCORDING TO PROCESSOR POWER. 4000 WORKS WITH AN i9-11900K. FOR SLOWER PROCESSOR YOU PROBABLY NEED TO SET THIS INTERVAL HIGHER IN ORDER TO MAKE THE APP WORK
                             n_intervals=0
                         )
                     ],
@@ -393,10 +393,10 @@ def pong_step(draw_explainability=True):
         environment.ale.saveScreenPNG('game_screen.png')
         encoded_game_screen = base64.b64encode(open('game_screen.png', 'rb').read())
 
-        # occlusion_img = agent.getOcclusionImage(state, method='Gaussian-Blur', mode=MODE, action=ACTION,
-        #                                         threshold=THRESHOLD, size=SIZE, color=None, concurrent=CONCURRENT,
-        #                                         metric=METRIC)
-        # cv2.imwrite('saliency_map.png', cv2.resize(255 * occlusion_img, (340, 240)))
+        occlusion_img = agent.getOcclusionImage(state, method='Gaussian-Blur', mode=MODE, action=ACTION,
+                                                threshold=THRESHOLD, size=SIZE, color=None, concurrent=CONCURRENT,
+                                                metric=METRIC)
+        cv2.imwrite('saliency_map.png', cv2.resize(255 * occlusion_img, (340, 240)))
         encoded_saliency_map = base64.b64encode(open('saliency_map.png', 'rb').read())
 
         return 'data:image/png;base64,{}'.format(encoded_game_screen.decode()), 'data:image/png;base64,{}'.format(
