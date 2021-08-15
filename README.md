@@ -8,4 +8,6 @@ Please look at line 186 in app.py and change the interval value according to you
 
 Visit xrl-nip.heroku.app for a presentation of the results.
 
-![animated](saliency_map.gif)
+Egemen Okur
+Galip Ümit Yolcu
+Dennis Weiss
