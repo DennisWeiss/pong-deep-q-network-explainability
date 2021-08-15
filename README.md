@@ -10,6 +10,9 @@ Visit xrl-nip.heroku.com for a presentation of the results.
 
 The project uses Atari Learning Environment(ALE), thus you need to install all dependencies appropriately, have to use python3.6, and can't work on Windows due to ALE. 
 
+Project Team:
 Egemen Okur
+
 Galip Ümit Yolcu
+
 Dennis Weiss
