@@ -83,10 +83,6 @@ white_button_style = {'color': '#DED8D8', 'margin-right':'15x', 'margin-left':'1
 
 app.layout = html.Div(
     [
-
-
-
-
         # header
         html.Div(
             [
@@ -187,7 +183,7 @@ app.layout = html.Div(
                         ),
                         dcc.Interval(
                             id='interval-component',
-                            interval=4000,
+                            interval=4000, # THIS VALUE NEEDS TO BE ADJUSTED ACCORDING TO PROCESSOR POWER. 4000 WORKS WITH AN i9-11900K. FOR SLOWER PROCESSOR YOU PROBABLY NEED TO SET THIS INTERVAL HIGHER IN ORDER TO MAKE THE APP WORK.
                             n_intervals=0
                         )
                     ],
@@ -248,14 +244,38 @@ app.layout = html.Div(
 
                 html.Div(
                     [
-                        html.H4("Conclusion", className="app__header__title",  style={"margin-left": "15px" }),
+                        html.H4("Conclusion", className="app__header__title", style={"margin-left": "15px"}),
                         html.H6(
-                            "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.",
-                            className="text__container",)
+                            "In all the saliency maps that we have computed ([2],[3],[4]), we have seen that the model attends mostly to the most recent frame. The Gaussian perturbation method has shown good results as with its output, it can be seen that the agent is paying attention to the ball and the paddles of the pong game. Intuitively, this enables us to understand policies and reveal the black-box of how Reinforcement Learning agents take decisions. Despite the saliency maps, game tree visualisation has also been used to understand how the agent gives importance to its actions. We clearly see how the Q-values are changing for each continuing frame. With that, we understand why the agent is moving up or down for given states.",
+                            className="text__container", )
 
                     ],
                     className="one-whole column footer__container",
                 ),
+                html.Div(
+                    [
+                        html.H4("References", className="app__header__title", style={"margin-left": "15px"}),
+                        html.H6(
+                            '[1] Wang, Ziyu, Tom Schaul, Matteo Hessel, Hado Hasselt, Marc Lanctot, and Nando Freitas. "Dueling network architectures for deep reinforcement learning." In International conference on machine learning, pp. 1995-2003. PMLR, 2016.',
+                            className="text__container"
+                        ),
+                        html.H6(
+                            '[2] Simonyan, Karen, Andrea Vedaldi, and Andrew Zisserman. "Deep inside convolutional networks: Visualising image classification models and saliency maps." arXiv preprint arXiv:1312.6034 (2013).',
+                            className="text__container"
+                        ),
+                        html.H6(
+                            '[3] Springenberg, Jost Tobias, Alexey Dosovitskiy, Thomas Brox, and Martin Riedmiller. "Striving for simplicity: The all convolutional net." arXiv preprint arXiv:1412.6806 (2014).',
+                            className="text__container"
+                        ),
+                        html.H6(
+                            '[4] Greydanus, Samuel, Anurag Koul, Jonathan Dodge, and Alan Fern. "Visualizing and understanding atari agents." In International Conference on Machine Learning, pp. 1792-1801. PMLR, 2018.',
+                            className="text__container"
+                        )
+
+                    ],
+                    className="one-whole column footer__container",
+                ),
+
             ],
             className="app__header",
         ),
@@ -373,10 +393,10 @@ def pong_step(draw_explainability=True):
         environment.ale.saveScreenPNG('game_screen.png')
         encoded_game_screen = base64.b64encode(open('game_screen.png', 'rb').read())
 
-        occlusion_img = agent.getOcclusionImage(state, method='Gaussian-Blur', mode=MODE, action=ACTION,
-                                                threshold=THRESHOLD, size=SIZE, color=None, concurrent=CONCURRENT,
-                                                metric=METRIC)
-        cv2.imwrite('saliency_map.png', cv2.resize(255 * occlusion_img, (340, 240)))
+        # occlusion_img = agent.getOcclusionImage(state, method='Gaussian-Blur', mode=MODE, action=ACTION,
+        #                                         threshold=THRESHOLD, size=SIZE, color=None, concurrent=CONCURRENT,
+        #                                         metric=METRIC)
+        # cv2.imwrite('saliency_map.png', cv2.resize(255 * occlusion_img, (340, 240)))
         encoded_saliency_map = base64.b64encode(open('saliency_map.png', 'rb').read())
 
         return 'data:image/png;base64,{}'.format(encoded_game_screen.decode()), 'data:image/png;base64,{}'.format(
