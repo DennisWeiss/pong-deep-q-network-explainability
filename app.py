@@ -104,7 +104,7 @@ app.layout = html.Div(
                         ),
                         html.A(
                             html.Button("Paper", className="link-button", style=white_button_style),
-                            href="https://github.com/plotly/dash-sample-apps/tree/main/apps/dash-wind-streaming",
+                            href="https://github.com/DennisWeiss/pong-deep-q-network-explainability/blob/master/NIP_Paper.pdf",
                         ),
                         html.A(
                             html.Img(
