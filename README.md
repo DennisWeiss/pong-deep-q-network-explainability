@@ -9,5 +9,7 @@ The project uses Atari Learning Environment(ALE), thus you need to install all d
 Project Team:
 
 Egemen Okur
+
 Galip Ümit Yolcu
+
 Dennis Weiss
